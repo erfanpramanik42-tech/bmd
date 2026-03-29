@@ -1,0 +1,162 @@
+name: Build Bondhumohol Android APK
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Init npm & install Capacitor + plugins
+      run: |
+        if [ ! -f package.json ]; then
+          npm init -y
+        fi
+        npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/filesystem @capacitor/splash-screen
+
+    - name: Create Capacitor config
+      run: |
+        cat > capacitor.config.json << 'EOF'
+        {
+          "appId": "com.bondhumohol.foundation",
+          "appName": "বন্ধুমহল ফাউন্ডেশন",
+          "webDir": "www",
+          "server": {
+            "androidScheme": "https"
+          },
+          "plugins": {
+            "SplashScreen": {
+              "launchShowDuration": 2000,
+              "backgroundColor": "#1a6b3c",
+              "showSpinner": false,
+              "androidSplashResourceName": "splash",
+              "splashFullScreen": true,
+              "splashImmersive": true
+            }
+          }
+        }
+        EOF
+
+    - name: Prepare www folder
+      run: |
+        mkdir -p www
+        cp index.html www/index.html
+
+    - name: Add Android Platform
+      run: |
+        npx cap add android || true
+        npx cap sync android
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'gradle'
+
+    - name: Install imagemagick
+      run: sudo apt-get install -y imagemagick
+
+    # ─── সমস্যা ২: আইকন ক্রপ ঠিক করা ─────────────────────
+    # trim করো না — সরাসরি resize করো যাতে ক্রপ না হয়
+    - name: Generate Android Icons
+      run: |
+        if [ ! -f icon.png ]; then
+          echo "⚠️ icon.png নেই"
+          exit 0
+        fi
+
+        MIPMAP="android/app/src/main/res"
+        mkdir -p $MIPMAP/mipmap-mdpi
+        mkdir -p $MIPMAP/mipmap-hdpi
+        mkdir -p $MIPMAP/mipmap-xhdpi
+        mkdir -p $MIPMAP/mipmap-xxhdpi
+        mkdir -p $MIPMAP/mipmap-xxxhdpi
+
+        # trim ছাড়া সরাসরি resize — ক্রপ হবে না
+        convert icon.png -resize 48x48!   $MIPMAP/mipmap-mdpi/ic_launcher.png
+        convert icon.png -resize 48x48!   $MIPMAP/mipmap-mdpi/ic_launcher_round.png
+        convert icon.png -resize 72x72!   $MIPMAP/mipmap-hdpi/ic_launcher.png
+        convert icon.png -resize 72x72!   $MIPMAP/mipmap-hdpi/ic_launcher_round.png
+        convert icon.png -resize 96x96!   $MIPMAP/mipmap-xhdpi/ic_launcher.png
+        convert icon.png -resize 96x96!   $MIPMAP/mipmap-xhdpi/ic_launcher_round.png
+        convert icon.png -resize 144x144! $MIPMAP/mipmap-xxhdpi/ic_launcher.png
+        convert icon.png -resize 144x144! $MIPMAP/mipmap-xxhdpi/ic_launcher_round.png
+        convert icon.png -resize 192x192! $MIPMAP/mipmap-xxxhdpi/ic_launcher.png
+        convert icon.png -resize 192x192! $MIPMAP/mipmap-xxxhdpi/ic_launcher_round.png
+
+        echo "✅ আইকন তৈরি হয়েছে"
+
+    # ─── সমস্যা ৩: Splash Screen — custom তৈরি করো ────────
+    - name: Generate Splash Screen
+      run: |
+        if [ ! -f icon.png ]; then
+          exit 0
+        fi
+
+        DRAWABLE="android/app/src/main/res"
+        mkdir -p $DRAWABLE/drawable
+        mkdir -p $DRAWABLE/drawable-land
+        mkdir -p $DRAWABLE/drawable-port
+
+        # সবুজ ব্যাকগ্রাউন্ডে মাঝখানে আইকন — 1920x1920
+        convert -size 1920x1920 xc:"#1a6b3c" \
+          \( icon.png -resize 400x400 \) \
+          -gravity center -composite \
+          $DRAWABLE/drawable/splash.png
+
+        # landscape
+        convert -size 1920x1080 xc:"#1a6b3c" \
+          \( icon.png -resize 300x300 \) \
+          -gravity center -composite \
+          $DRAWABLE/drawable-land/splash.png
+
+        # portrait
+        convert -size 1080x1920 xc:"#1a6b3c" \
+          \( icon.png -resize 400x400 \) \
+          -gravity center -composite \
+          $DRAWABLE/drawable-port/splash.png
+
+        echo "✅ Splash screen তৈরি হয়েছে"
+
+    - name: Set App Name
+      run: |
+        STRINGS="android/app/src/main/res/values/strings.xml"
+        sed -i 's/<string name="app_name">.*<\/string>/<string name="app_name">বন্ধুমহল ফাউন্ডেশন<\/string>/' $STRINGS
+
+    - name: Inject Permissions & Download Support
+      run: |
+        MANIFEST="android/app/src/main/AndroidManifest.xml"
+        # Android 10 এ download এর জন্য requestLegacyExternalStorage
+        sed -i 's/<application/<application android:requestLegacyExternalStorage="true"/' $MANIFEST
+        sed -i 's/<\/manifest>/    <uses-permission android:name="android.permission.INTERNET" \/>\n<\/manifest>/' $MANIFEST
+        sed -i 's/<\/manifest>/    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" \/>\n<\/manifest>/' $MANIFEST
+        sed -i 's/<\/manifest>/    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" \/>\n<\/manifest>/' $MANIFEST
+        sed -i 's/<\/manifest>/    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" \/>\n<\/manifest>/' $MANIFEST
+        sed -i 's/<\/manifest>/    <uses-permission android:name="android.permission.CAMERA" \/>\n<\/manifest>/' $MANIFEST
+        sed -i 's/<\/manifest>/    <uses-feature android:name="android.hardware.camera" android:required="false" \/>\n<\/manifest>/' $MANIFEST
+
+    - name: Build Debug APK
+      run: |
+        cd android
+        chmod +x gradlew
+        ./gradlew assembleDebug --stacktrace
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: bondhumohol-debug-apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 30
