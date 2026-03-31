@@ -1,525 +1,265 @@
 <!DOCTYPE html>
 <html lang="bn">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="theme-color" content="#1a6b3c">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>বন্ধুমহল ফাউন্ডেশন</title>
-<script>
-// ===== OFFLINE DETECTION =====
-window.addEventListener('online',  ()=>{ const b=document.getElementById('offlineBanner'); if(b)b.style.display='none'; });
-window.addEventListener('offline', ()=>{ const b=document.getElementById('offlineBanner'); if(b)b.style.display='flex'; });
-</script>
-<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Noto+Serif+Bengali:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{
-  --p:#1a6b3c;--pl:#2d9657;--pd:#0f4025;
-  --acc:#f0a500;--danger:#e63946;--warn:#f4a261;
-  --bg:#f0f4f1;--bg2:#e4ede7;--card:#fff;
-  --txt:#1a2e22;--txt2:#4a6558;--txt3:#8aaa96;--border:#d0e0d6;--bdr:#d0e0d6;
-  --shadow:0 4px 20px rgba(26,107,60,.10);
-  --r:18px;--rs:10px;--nav:68px;
-}
-[data-theme="dark"]{
-  --bg:#0e1a13;--bg2:#162010;--card:#1a2e1e;
-  --txt:#e8f5ee;--txt2:#a8c4b0;--txt3:#5a7a62;--border:#2a4030;--bdr:#2a4030;
-  --shadow:0 4px 20px rgba(0,0,0,.35);
-}
-*{transition:background-color .25s,color .15s,border-color .2s}
-html,body{height:100%;font-family:'Hind Siliguri',sans-serif;background:var(--bg);color:var(--txt)}
-body{display:flex;flex-direction:column;max-width:480px;margin:0 auto;min-height:100vh;box-shadow:0 0 60px rgba(0,0,0,.08);position:relative;overflow-x:hidden}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>বন্ধুমহল - Coming Soon</title>
 
-/* HEADER */
-.app-header{background:linear-gradient(135deg,var(--pd) 0%,var(--p) 60%,var(--pl) 100%);padding:12px 16px 14px;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between}
-.logo-area{display:flex;align-items:center;gap:9px}
-.logo-icon{width:38px;height:38px;background:rgba(255,255,255,.15);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px}
-.header-title{font-family:'Noto Serif Bengali',serif;font-size:14px;font-weight:700;color:#fff;line-height:1.2}
-.header-title span{display:block;font-size:10px;font-weight:400;opacity:.7;font-family:'Hind Siliguri',sans-serif}
-.header-right{display:flex;gap:7px;align-items:center}
-.btn-icon{width:34px;height:34px;background:rgba(255,255,255,.15);border:none;border-radius:9px;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s;position:relative}
-#dotMenuBtn{font-size:20px;font-weight:900;letter-spacing:0;line-height:1}
-#dotMenu div:hover{background:var(--bg2)}
-.btn-icon:active{background:rgba(255,255,255,.3)}
-.role-badge{background:rgba(255,255,255,.2);color:#fff;padding:3px 9px;border-radius:18px;font-size:11px;font-weight:600;white-space:nowrap}
-.role-badge.admin-badge{background:var(--acc)}
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', sans-serif;
+        }
 
-/* PAGES */
-.page{display:none;flex-direction:column;padding-bottom:calc(var(--nav) + 6px);min-height:calc(100vh - 68px);animation:fadeIn .25s ease}
-.page.active{display:flex}
-@keyframes ndotPop{0%{transform:scale(0.5);opacity:0}70%{transform:scale(1.2)}100%{transform:scale(1);opacity:1}}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+        body {
+            height: 100vh;
+            overflow: hidden;
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
 
-/* SCROLL */
-.sc{flex:1;overflow-y:auto;padding:13px 13px 4px;scrollbar-width:none}
-.sc::-webkit-scrollbar{display:none}
+        /* Floating bubbles */
+        .bubbles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
 
-/* BOTTOM NAV */
-.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;height:var(--nav);background:#fff;display:flex;align-items:center;border-top:1px solid var(--border);z-index:200;box-shadow:0 -4px 20px rgba(26,107,60,.08)}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:7px 2px;cursor:pointer;border:none;background:none;color:var(--txt3);font-family:'Hind Siliguri',sans-serif;font-size:10px;font-weight:500;transition:color .2s;position:relative}
-.nav-item .ni{width:22px;height:22px;transition:transform .2s;display:flex;align-items:center;justify-content:center}
-.nav-item .ni svg{width:22px;height:22px;stroke:currentColor;transition:stroke .2s}
-.nav-item.active{color:var(--p)}
-.nav-item.active .ni{transform:scale(1.12)}
-.nav-item.active::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:32px;height:3px;background:var(--p);border-radius:0 0 6px 6px}
-.ndot{position:absolute;top:-1px;right:-3px;min-width:17px;height:17px;background:linear-gradient(135deg,#ef4444,#dc2626);border-radius:10px;border:2px solid var(--hdr);font-size:9px;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 4px;box-shadow:0 2px 6px rgba(239,68,68,.5);animation:ndotPop .3s ease}
+        .bubbles span {
+            position: absolute;
+            display: block;
+            width: 20px;
+            height: 20px;
+            background: rgba(255,255,255,0.3);
+            animation: animate 25s linear infinite;
+            bottom: -150px;
+            border-radius: 50%;
+        }
 
-/* CARDS */
-.card{background:var(--card);border-radius:var(--r);padding:15px;box-shadow:var(--shadow);margin-bottom:12px}
-.card-sm{padding:11px 13px;border-radius:var(--rs)}
+        @keyframes animate {
+            0% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-1000px) scale(0.5);
+                opacity: 0;
+            }
+        }
 
-/* HERO */
-.hero{background:linear-gradient(135deg,var(--pd) 0%,var(--p) 100%);border-radius:var(--r);padding:20px 16px;margin-bottom:13px;color:#fff;position:relative;overflow:hidden}
-.hero::before{content:'৳';position:absolute;right:-8px;top:-16px;font-size:120px;opacity:.06;font-weight:700}
-.hero .label{font-size:12px;opacity:.8;margin-bottom:4px}
-.hero .amount{font-size:30px;font-weight:700;letter-spacing:-1px}
-.hero .amount small{font-size:15px;font-weight:500}
-.hero .sub-row{display:flex;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.2)}
-.hero .si{font-size:11px;opacity:.85}
-.hero .si strong{display:block;font-size:13px;font-weight:700;margin-bottom:1px}
+        /* Different sizes & speeds */
+        .bubbles span:nth-child(1) { left: 10%; width: 15px; height: 15px; animation-duration: 18s; }
+        .bubbles span:nth-child(2) { left: 20%; width: 25px; height: 25px; animation-duration: 22s; }
+        .bubbles span:nth-child(3) { left: 30%; animation-duration: 20s; }
+        .bubbles span:nth-child(4) { left: 40%; width: 30px; height: 30px; animation-duration: 25s; }
+        .bubbles span:nth-child(5) { left: 50%; animation-duration: 19s; }
+        .bubbles span:nth-child(6) { left: 60%; width: 18px; height: 18px; animation-duration: 21s; }
+        .bubbles span:nth-child(7) { left: 70%; animation-duration: 17s; }
+        .bubbles span:nth-child(8) { left: 80%; width: 22px; height: 22px; animation-duration: 23s; }
+        .bubbles span:nth-child(9) { left: 90%; animation-duration: 20s; }
+        .bubbles span:nth-child(10){ left: 25%; width: 28px; height: 28px; animation-duration: 24s; }
 
-/* STATS */
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:13px}
-.stat{background:var(--card);border-radius:var(--r);padding:13px;box-shadow:var(--shadow)}
-.stat .s-icon{font-size:22px;margin-bottom:5px}
-.stat .s-label{font-size:11px;color:var(--txt3);font-weight:500;margin-bottom:2px}
-.stat .s-val{font-size:17px;font-weight:700}
+        /* Content box */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 500px;
+            padding: 30px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
 
-/* PRO STAT CARDS */
-.stat-pro{padding:14px 13px;border-radius:var(--r);position:relative;overflow:hidden;display:flex;flex-direction:column;gap:4px;box-shadow:var(--shadow);background:transparent;border:1.5px solid var(--border)}
-.stat-pro::after{content:'';position:absolute;right:-10px;bottom:-10px;width:60px;height:60px;border-radius:50%;background:rgba(0,0,0,.03)}
-.stat-members{border-color:rgba(26,107,60,.25)}
-.stat-deposit{border-color:rgba(176,120,0,.25)}
-.stat-activeloan{border-color:rgba(230,57,70,.25)}
-.stat-doneloan{border-color:rgba(37,99,235,.25)}
-.sp-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:6px}
-.stat-members .sp-icon{background:rgba(26,107,60,.12)}
-.stat-deposit .sp-icon{background:rgba(176,120,0,.12)}
-.stat-activeloan .sp-icon{background:rgba(230,57,70,.12)}
-.stat-doneloan .sp-icon{background:rgba(37,99,235,.12)}
-.sp-val{font-size:20px;font-weight:800;letter-spacing:-.5px;line-height:1;color:var(--txt)}
-.sp-lbl{font-size:10px;color:var(--txt3);font-weight:500;margin-top:1px}
-.stat-members .sp-val,.stat-members .sp-icon svg path,.stat-members .sp-icon svg circle{color:var(--p)}
-.stat-deposit .sp-val{color:#b07800}
-.stat-activeloan .sp-val{color:var(--danger)}
-.stat-doneloan .sp-val{color:#2563eb}
+        h1 {
+            font-size: 36px;
+            margin-bottom: 15px;
+        }
 
-/* QUICK ACTIONS */
-.qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:13px}
-.qa{display:flex;flex-direction:column;align-items:center;gap:4px;padding:11px 3px;background:var(--card);border-radius:var(--rs);box-shadow:var(--shadow);cursor:pointer;border:none;font-family:'Hind Siliguri',sans-serif;transition:transform .15s}
-.qa:active{transform:scale(.94)}
-.qa .qi{font-size:20px}
-.qa .ql{font-size:10px;font-weight:600;color:var(--txt2);text-align:center;line-height:1.2}
+        p {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
 
-/* SECTION TITLE */
-.stitle{font-family:'Noto Serif Bengali',serif;font-size:16px;font-weight:700;color:var(--txt);margin-bottom:11px;display:flex;align-items:center;gap:7px}
+        .loader {
+            border: 5px solid rgba(255,255,255,0.3);
+            border-top: 5px solid #fff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
 
-/* MEMBER ITEM */
-.member-item{display:flex;align-items:center;gap:10px;padding:12px 13px;background:var(--card);border-radius:var(--rs);margin-bottom:8px;box-shadow:var(--shadow);cursor:pointer;transition:transform .15s}
-.member-item:active{transform:scale(.98)}
-.avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--pl),var(--acc));display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden}
-.avatar img{width:100%;height:100%;object-fit:cover}
-.mi-info{flex:1;min-width:0}
-.mi-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mi-phone{font-size:11px;color:var(--txt3);margin-top:2px}
-.mi-stats{font-size:11px;color:var(--p);margin-top:3px;font-weight:500}
-.mi-right{text-align:right;flex-shrink:0}
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
 
-/* BADGE */
-.badge{display:inline-block;padding:3px 8px;border-radius:18px;font-size:11px;font-weight:600}
-.bg-green{background:#e8f5ee;color:var(--p)}
-.bg-red{background:#fde8ea;color:var(--danger)}
-.bg-gold{background:#fff4d6;color:#b07800}
-.bg-blue{background:#e8f0fd;color:#2563eb}
-.bg-gray{background:var(--bg2);color:var(--txt3)}
-.bg-purple{background:#f3e8ff;color:#7c3aed}
+        .footer {
+            margin-top: 20px;
+            font-size: 14px;
+            opacity: 0.8;
+        }
 
-/* TXN */
-.txn{display:flex;align-items:center;gap:10px;padding:11px 13px;background:var(--card);border-radius:var(--rs);margin-bottom:7px;box-shadow:0 2px 10px rgba(26,107,60,.06)}
-.txn-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-.ti-dep{background:#e8f5ee}.ti-loan{background:#fde8ea}.ti-inst{background:#fff4d6}
-.txn-info{flex:1;min-width:0}
-.txn-name{font-size:13px;font-weight:600}
-.txn-meta{font-size:11px;color:var(--txt3);margin-top:2px}
-.txn-amt{font-size:14px;font-weight:700}
-.pos{color:var(--p)}.neg{color:var(--danger)}
-
-/* LOAN CARD */
-.loan-card{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:10px;box-shadow:var(--shadow);border-left:4px solid var(--p)}
-.loan-card.done{border-left-color:var(--txt3);opacity:.75}
-.loan-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px}
-.loan-name{font-size:14px;font-weight:700}
-.loan-meta{font-size:11px;color:var(--txt3);margin-top:2px}
-.prog-bar{height:5px;background:var(--bg2);border-radius:10px;overflow:hidden;margin:8px 0}
-.prog-fill{height:100%;background:linear-gradient(90deg,var(--p),var(--pl));border-radius:10px}
-.loan-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
-.ls{text-align:center}
-.ls .lv{font-size:12px;font-weight:700}
-.ls .ll{font-size:10px;color:var(--txt3);margin-top:1px}
-
-/* FORMS */
-.fg{margin-bottom:9px}
-.flabel{font-size:11px;font-weight:600;color:var(--txt2);margin-bottom:4px;display:block}
-.finput{width:100%;padding:13px 14px;border:2px solid var(--border);border-radius:var(--rs);font-size:15px;font-family:'Hind Siliguri',sans-serif;color:var(--txt);background:var(--card);outline:none;transition:border-color .2s,box-shadow .2s;-webkit-appearance:none;appearance:none}
-.finput:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(26,107,60,.1)}
-select.finput{cursor:pointer}
-
-/* BUTTONS */
-.btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:12px;border:none;border-radius:var(--rs);font-size:14px;font-weight:600;font-family:'Hind Siliguri',sans-serif;cursor:pointer;transition:all .2s}
-.btn-p{background:var(--p);color:#fff}
-.btn-p:active{background:var(--pd);transform:scale(.98)}
-.btn-d{background:var(--danger);color:#fff}
-.btn-o{background:transparent;color:var(--p);border:2px solid var(--p)}
-.btn-g{background:var(--acc);color:#fff}
-.btn-gray{background:var(--bg2);color:var(--txt2)}
-.btn-purple{background:#7c3aed;color:#fff}
-.btn-sm{padding:7px 11px;font-size:11px;width:auto;border-radius:7px}
-
-/* FAB */
-.fab{position:fixed;bottom:calc(var(--nav) + 13px);right:max(16px, calc(50% - 224px));width:50px;height:50px;background:var(--p);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;box-shadow:0 5px 20px rgba(26,107,60,.4);cursor:pointer;border:none;z-index:150;transition:transform .2s,box-shadow .2s}
-.fab:active{transform:scale(.9)}
-
-/* MODAL */
-.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:500;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px)}
-.modal-ov.open{display:flex}
-.modal{background:var(--card);border-radius:var(--r) var(--r) 0 0;padding:16px 16px 30px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;animation:slideUp .3s cubic-bezier(.23,1,.32,1);scrollbar-width:none}
-.modal::-webkit-scrollbar{display:none}
-@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.modal-handle{width:36px;height:4px;background:var(--border);border-radius:4px;margin:0 auto 14px}
-.modal-title{font-family:'Noto Serif Bengali',serif;font-size:16px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:7px}
-.btn-row{display:flex;gap:8px;margin-top:5px}
-
-/* SEARCH */
-.search-bar{display:flex;align-items:center;gap:8px;background:var(--card);border-radius:var(--rs);padding:9px 12px;margin-bottom:11px;box-shadow:var(--shadow);border:2px solid transparent;transition:border-color .2s}
-.search-bar:focus-within{border-color:var(--p)}
-.search-bar input{flex:1;border:none;outline:none;font-size:13px;font-family:'Hind Siliguri',sans-serif;color:var(--txt);background:transparent}
-
-/* EMPTY */
-.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 18px;text-align:center}
-.empty .ei{font-size:48px;margin-bottom:10px;opacity:.6}
-.empty h3{font-size:15px;font-weight:600;color:var(--txt2);margin-bottom:4px}
-.empty p{font-size:12px;color:var(--txt3);line-height:1.5}
-
-/* AUTH */
-#auth-screen{position:fixed;inset:0;display:flex;flex-direction:column;background:linear-gradient(160deg,var(--pd) 0%,var(--p) 50%,var(--pl) 100%);z-index:9999;overflow-y:auto}
-.auth-hero{flex-shrink:0;height:28vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 18px;color:#fff;text-align:center}
-.auth-hero .ah-icon{font-size:44px;margin-bottom:8px}
-.auth-hero h1{font-family:'Noto Serif Bengali',serif;font-size:19px;font-weight:700;margin-bottom:3px}
-.auth-hero p{font-size:11px;opacity:.8;margin:0}
-.auth-card{background:var(--card);border-radius:28px 28px 0 0;padding:18px 16px 32px;flex-shrink:0;min-height:62vh}
-.auth-tabs{display:flex;background:var(--bg2);border-radius:10px;padding:4px;margin-bottom:12px}
-.auth-tab{flex:1;text-align:center;padding:8px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;color:var(--txt3);border:none;background:none;font-family:'Hind Siliguri',sans-serif}
-.auth-tab.active{background:var(--card);color:var(--p);box-shadow:0 2px 8px rgba(0,0,0,.08)}
-.auth-form{display:none}
-.auth-form.active{display:block}
-
-/* PIN */
-.pin-row{display:flex;gap:10px;justify-content:center;margin:8px 0}
-.pin-dot{width:52px;height:52px;border:2px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;transition:all .2s;background:var(--bg)}
-.pin-dot.filled{background:var(--p);border-color:var(--p);color:#fff}
-.pin-dot.error{background:#fde8ea;border-color:var(--danger);animation:shake .3s}
-@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
-.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
-.np-btn{padding:14px 8px;font-size:18px;font-weight:700;background:var(--bg2);border:none;border-radius:12px;cursor:pointer;font-family:'Hind Siliguri',sans-serif;color:var(--txt);transition:background .15s,transform .1s}
-.np-btn:active{background:var(--border);transform:scale(.92)}
-.np-btn.special{font-size:13px;background:var(--card)}
-.np-btn.ok-btn{background:var(--p);color:#fff}
-
-/* INFO ROW */
-.irow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:13px;border-bottom:1px solid var(--border)}
-.irow:last-child{border-bottom:none}
-.irow .il{color:var(--txt3)}
-.irow .iv{font-weight:600}
-
-/* TTABS */
-.ttabs{display:flex;background:var(--bg2);border-radius:10px;padding:4px;margin-bottom:13px}
-.ttab{flex:1;text-align:center;padding:7px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;color:var(--txt3);border:none;background:none;font-family:'Hind Siliguri',sans-serif}
-.ttab.active{background:var(--card);color:var(--p);box-shadow:0 2px 8px rgba(0,0,0,.08)}
-
-/* CHART */
-.chart-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-#memberDepTable th,#memberDepTable td{white-space:nowrap}
-#memberDepTable tbody tr:hover td{background:rgba(45,150,87,.07)!important}
-.chart-lbl{font-size:11px;color:var(--txt2);width:62px;text-align:right;flex-shrink:0}
-.chart-track{flex:1;height:19px;background:var(--bg2);border-radius:5px;overflow:hidden}
-.chart-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding-left:6px}
-.chart-fill span{font-size:10px;font-weight:600;color:#fff;white-space:nowrap}
-
-/* Deposit table */
-.dep-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
-.dep-tbl th{background:linear-gradient(135deg,var(--pd),var(--p));color:#fff;padding:8px 10px;text-align:center;font-size:11px;font-weight:600;white-space:nowrap}
-.dep-tbl th:first-child,.dep-tbl th:nth-child(2),.dep-tbl th:nth-child(3){text-align:left}
-.dep-tbl td{padding:7px 10px;border-bottom:1px solid var(--bdr);vertical-align:middle;text-align:center}
-.dep-tbl td:first-child,.dep-tbl td:nth-child(2),.dep-tbl td:nth-child(3){text-align:left}
-.dep-tbl tr:nth-child(even) td{background:rgba(0,0,0,.022)}
-.dep-tbl tr:hover td{background:rgba(37,99,235,.05);transition:background .15s}
-.dep-tbl .cpaid{color:#16a34a;font-weight:700}
-.dep-tbl .cmiss{color:#dc2626;font-size:14px}
-.dep-tbl .cna{color:var(--txt3);font-size:13px}
-.dep-tbl .tfoot td{background:linear-gradient(90deg,rgba(37,99,235,.08),rgba(37,99,235,.03));font-weight:700;font-size:12px;border-top:2px solid rgba(37,99,235,.2)}
-/* Report summary */
-.rpt-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-.rpt-card{border-radius:var(--rs);padding:11px 13px;border:1px solid var(--bdr);background:var(--card)}
-.rpt-card .rcv{font-size:17px;font-weight:800;margin-bottom:2px}
-.rpt-card .rcl{font-size:10.5px;color:var(--txt3);line-height:1.4}
-
-/* CALC BOX */
-.calc-box{background:#e8f5ee;border-radius:var(--rs);padding:12px;margin-top:7px}
-.calc-row{display:flex;justify-content:space-between;padding:2px 0;font-size:12px}
-.calc-row strong{font-weight:700;color:var(--p)}
-
-/* REQ CARD */
-.req-card{background:var(--card);border-radius:var(--rs);padding:12px;margin-bottom:8px;box-shadow:var(--shadow);border-left:3px solid var(--acc)}
-.req-card.approved{border-left-color:var(--p)}
-.req-card.rejected{border-left-color:var(--danger)}
-.req-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
-.req-name{font-size:13px;font-weight:700}
-.req-meta{font-size:11px;color:var(--txt3)}
-
-/* PHOTO UPLOAD */
-.photo-upload-area{display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px;border:2px dashed var(--border);border-radius:var(--rs);cursor:pointer;transition:border-color .2s}
-.photo-upload-area:active{border-color:var(--p)}
-.pu-preview{width:60px;height:60px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden}
-.pu-preview img{width:100%;height:100%;object-fit:cover}
-
-/* PROFILE HEADER */
-.profile-header{background:linear-gradient(135deg,var(--pd),var(--p));border-radius:var(--rs);padding:16px;display:flex;align-items:center;gap:13px;color:#fff;margin-bottom:13px}
-.profile-avatar{width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;flex-shrink:0}
-.profile-avatar img{width:100%;height:100%;object-fit:cover}
-
-/* MONTH PILLS */
-.mpills{display:flex;gap:7px;overflow-x:auto;padding-bottom:5px;margin-bottom:11px;scrollbar-width:none}
-.mpills::-webkit-scrollbar{display:none}
-.mpill{flex-shrink:0;padding:5px 11px;border-radius:17px;font-size:11px;font-weight:600;cursor:pointer;border:2px solid var(--border);background:var(--card);color:var(--txt3);transition:all .2s}
-.mpill.active{background:var(--p);color:#fff;border-color:var(--p)}
-
-/* SETTINGS */
-.si-item{display:flex;align-items:center;gap:11px;padding:13px;background:var(--card);border-radius:var(--rs);margin-bottom:8px;box-shadow:var(--shadow);cursor:pointer}
-.si-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
-.si-title{font-size:14px;font-weight:600}
-.si-desc{font-size:11px;color:var(--txt3);margin-top:1px}
-.si-arrow{margin-left:auto;color:var(--txt3);font-size:16px}
-
-/* NOTIF DOT */
-
-/* DIVIDER */
-.div{height:1px;background:var(--border);margin:8px 0}
-
-/* INFO BANNER */
-.info-banner{background:linear-gradient(135deg,#e8f5ee,#d4eddb);border-radius:var(--rs);padding:10px 13px;margin-bottom:12px;display:flex;align-items:center;gap:9px;font-size:12px;color:var(--txt2)}
-
-/* ADMIN LIST */
-.admin-item{display:flex;align-items:center;gap:10px;padding:12px 13px;background:var(--card);border-radius:var(--rs);margin-bottom:8px;box-shadow:var(--shadow)}
-
-/* TOAST */
-.toast{position:fixed;bottom:calc(var(--nav) + 16px);left:50%;transform:translateX(-50%) translateY(14px);background:var(--txt);color:#fff;padding:11px 20px;border-radius:26px;font-size:13px;font-weight:600;z-index:9000;opacity:0;transition:all .3s;white-space:nowrap;max-width:90%;box-shadow:0 4px 20px rgba(0,0,0,.25)}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-</style>
+    </style>
 </head>
+
 <body>
 
-<!-- ====== OFFLINE BANNER ====== -->
-<div id="offlineBanner" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#1a2e22,#2d4a38);z-index:99999;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:16px;padding:24px;text-align:center">
-  <div style="font-size:64px">📡</div>
-  <h2 style="font-family:'Noto Serif Bengali',serif;font-size:20px;font-weight:700">ইন্টারনেট সংযোগ নেই</h2>
-  <p style="font-size:13px;opacity:.8;max-width:280px;line-height:1.7">বন্ধুমহল ফাউন্ডেশন অ্যাপ ব্যবহার করতে<br>ইন্টারনেট সংযোগ প্রয়োজন।</p>
-  <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:260px">
-    <div style="background:rgba(255,255,255,.1);border-radius:12px;padding:12px 16px;font-size:12px;opacity:.85">
-      📶 WiFi বা Mobile Data চালু করুন<br>তারপর আবার চেষ্টা করুন
+    <!-- Animated Background -->
+    <div class="bubbles">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
     </div>
-    <button onclick="window.location.reload()" style="padding:13px;background:#2d9657;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Hind Siliguri',sans-serif">
-      🔄 পুনরায় চেষ্টা করুন
-    </button>
-  </div>
-  <div style="position:absolute;bottom:20px;font-size:10px;opacity:.5">bondhumohol-foundation.netlify.app</div>
-</div>
 
-<!-- ====== AUTH SCREEN ====== -->
-<div id="loading-screen" style="position:fixed;inset:0;background:linear-gradient(160deg,#0f4025,#1a6b3c,#2d9657);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:#fff;gap:16px">
-  <div style="font-size:60px;animation:pulse 1.5s infinite">🤝</div>
-  <h2 style="font-family:'Noto Serif Bengali',serif;font-size:20px;font-weight:700">বন্ধুমহল ফাউন্ডেশন</h2>
-  <p style="font-size:12px;opacity:.75">সংযোগ স্থাপন হচ্ছে...</p>
-  <div style="width:36px;height:36px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite"></div>
-</div>
-<style>
-@keyframes spin{to{transform:rotate(360deg)}}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+    <!-- Main Content -->
+    <div class="container">
+        <h1>বন্ধুমহল</h1>
+        <p>🚧 আমাদের ওয়েবসাইট বর্তমানে নির্মাণাধীন 🚧</p>
+
+        <div class="loader"></div>
+
+        <p>আমরা খুব দ্রুত একটি নতুন ও আকর্ষণীয় প্ল্যাটফর্ম নিয়ে আসছি।  
+        আপনার ধৈর্যের জন্য ধন্যবাদ ❤️</p>
+
+        <div class="footer">
+            © 2026 বন্ধুমহল
+        </div>
+    </div>
+
+</body>
+</html>/* Text */
+h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.tagline {
+    font-size: 16px;
+    opacity: 0.9;
+    margin-bottom: 15px;
+}
+
+/* Countdown */
+.countdown {
+    display: flex;
+    justify-content: space-around;
+    margin: 20px 0;
+}
+
+.countdown div {
+    text-align: center;
+}
+
+.countdown span {
+    font-size: 26px;
+    font-weight: bold;
+}
+
+/* Input */
+input {
+    padding: 10px;
+    border-radius: 25px;
+    border: none;
+    width: 70%;
+    margin-top: 10px;
+}
+
+button {
+    padding: 10px 20px;
+    border-radius: 25px;
+    border: none;
+    background: #fff;
+    color: #333;
+    margin-top: 10px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+button:hover {
+    background: #ddd;
+}
+
+.footer {
+    margin-top: 15px;
+    font-size: 14px;
+    opacity: 0.8;
+}
 </style>
+</head>
 
-<div id="auth-screen" style="display:none">
-  <div class="auth-hero">
-    <div class="ah-icon">🤝</div>
-    <h1>বন্ধুমহল ফাউন্ডেশন</h1>
-    <p>আপনার বন্ধুদের সঞ্চয় তহবিল</p>
-  </div>
-  <div class="auth-card">
-    <div class="auth-tabs">
-      <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">লগইন</button>
-      <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">নিবন্ধন</button>
+<body>
+
+<div class="bg"></div>
+
+<div class="container">
+
+    <!-- Logo -->
+    <img src="logo.png" class="logo" alt="বন্ধুমহল Logo">
+
+    <h1>বন্ধুমহল</h1>
+    <div class="tagline">বন্ধুত্ব • বিশ্বাস • সংযোগ</div>
+
+    <p>🚀 আমরা খুব শীঘ্রই আসছি!</p>
+
+    <div class="countdown">
+        <div><span id="days">00</span><br>দিন</div>
+        <div><span id="hours">00</span><br>ঘন্টা</div>
+        <div><span id="minutes">00</span><br>মিনিট</div>
+        <div><span id="seconds">00</span><br>সেকেন্ড</div>
     </div>
 
-    <!-- LOGIN -->
-    <div class="auth-form active" id="auth-login">
-      <div class="fg">
-        <label class="flabel">ফোন নম্বর</label>
-        <input type="tel" class="finput" id="loginPhone" placeholder="০১XXXXXXXXX" inputmode="tel">
-      </div>
-      <div class="fg" style="margin-bottom:0">
-        <label class="flabel">পিন কোড</label>
-        <div class="pin-row">
-          <div class="pin-dot" id="lpd0">•</div>
-          <div class="pin-dot" id="lpd1">•</div>
-          <div class="pin-dot" id="lpd2">•</div>
-          <div class="pin-dot" id="lpd3">•</div>
-        </div>
-        <div class="numpad">
-          <button class="np-btn" onclick="numpad(1)">১</button>
-          <button class="np-btn" onclick="numpad(2)">২</button>
-          <button class="np-btn" onclick="numpad(3)">৩</button>
-          <button class="np-btn" onclick="numpad(4)">৪</button>
-          <button class="np-btn" onclick="numpad(5)">৫</button>
-          <button class="np-btn" onclick="numpad(6)">৬</button>
-          <button class="np-btn" onclick="numpad(7)">৭</button>
-          <button class="np-btn" onclick="numpad(8)">৮</button>
-          <button class="np-btn" onclick="numpad(9)">৯</button>
-          <button class="np-btn special" onclick="numpadDel()">⌫</button>
-          <button class="np-btn" onclick="numpad(0)">০</button>
-          <button class="np-btn special ok-btn" onclick="doLogin()">✓</button>
-        </div>
-      </div>
+    <p>লঞ্চ হলে জানার জন্য ইমেইল দিন</p>
+    <input type="email" placeholder="আপনার ইমেইল">
+    <br>
+    <button>Notify Me</button>
 
-    </div>
+    <div class="footer">© 2026 বন্ধুমহল</div>
 
-    <!-- REGISTER -->
-    <div class="auth-form" id="auth-register">
-      <div class="info-banner">ℹ️ নিবন্ধনের পর অ্যাডমিন অনুমোদন দিলে লগইন করতে পারবেন।</div>
-      <div class="fg"><label class="flabel">আপনার নাম *</label><input type="text" class="finput" id="regName" placeholder="নাম লিখুন"></div>
-      <div class="fg"><label class="flabel">ফোন নম্বর *</label><input type="tel" class="finput" id="regPhone" placeholder="০১XXXXXXXXX" inputmode="tel"></div>
-      <div class="fg"><label class="flabel">পিন কোড (৪ সংখ্যা) *</label><input type="password" class="finput" id="regPin" placeholder="৪ সংখ্যার পিন" maxlength="4" inputmode="numeric"></div>
-      <div class="fg"><label class="flabel">পিন নিশ্চিত করুন *</label><input type="password" class="finput" id="regPinConfirm" placeholder="পুনরায় পিন দিন" maxlength="4" inputmode="numeric"></div>
-      <div class="fg"><label class="flabel">ঠিকানা</label><input type="text" class="finput" id="regAddress" placeholder="ঐচ্ছিক"></div>
-      <div class="fg" style="margin-bottom:0">
-        <label style="cursor:pointer;display:block">
-          <div class="photo-upload-area">
-            <div class="pu-preview" id="regPhotoPreview">📷</div>
-            <div style="font-size:11px;color:var(--txt3)">ছবি আপলোড করুন (ঐচ্ছিক)</div>
-          </div>
-          <input type="file" accept="image/*" style="position:absolute;opacity:0;width:1px;height:1px" onchange="handleRegPhotoAny(this)">
-        </label>
-      </div>
-      <button class="btn btn-p" style="margin-top:14px" onclick="doRegister()">📝 নিবন্ধন করুন</button>
-    </div>
-  </div>
 </div>
 
-<!-- ====== MAIN APP ====== -->
-<div id="main-app" style="display:none;flex-direction:column;flex:1">
+<script>
+// Countdown
+var countDate = new Date("Apr 30, 2026 00:00:00").getTime();
 
-  <header class="app-header">
-    <div class="logo-area">
-      <div class="logo-icon">🤝</div>
-      <div class="header-title">বন্ধুমহল ফাউন্ডেশন<span id="headerSub">Bondhumohol Foundation</span></div>
-    </div>
-    <div class="header-right">
-      <span class="role-badge" id="roleBadge">সদস্য</span>
-      <button class="btn-icon" id="notifBtn" onclick="showNotifications()" style="position:relative">🔔<span class="ndot" id="notifDot" style="display:none"></span></button>
-      <div style="position:relative">
-        <button class="btn-icon" onclick="toggleDotMenu()" id="dotMenuBtn">⋮</button>
-        <div id="dotMenu" style="display:none;position:absolute;right:0;top:38px;background:var(--card);border:1px solid var(--bdr);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:190px;z-index:500;overflow:hidden">
-          <div onclick="toggleDarkMode()" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--bdr)">
-            <span style="display:flex;align-items:center;gap:10px"><span id="darkModeIcon">🌙</span> <span id="darkModeLabel">ডার্ক মোড</span></span>
-            <div id="darkModeToggle" style="width:36px;height:20px;background:var(--bdr);border-radius:10px;position:relative;transition:background .3s"><div style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .3s;box-shadow:0 1px 4px rgba(0,0,0,.3)" id="darkModeThumb"></div></div>
-          </div>
-          <div onclick="openModal('modal-terms')" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)">📋 <span>ফাউন্ডেশনের শর্তাবলি</span></div>
-          <div onclick="openModal('modal-investInfo')" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)">📈 <span>বিনিয়োগের বিস্তারিত</span></div>
-          <div onclick="openModal('modal-contacts')" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)">🏅 <span>ফান্ডে দায়িত্বরত ব্যক্তি</span></div>
-          <div onclick="openModal('modal-about')" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)">ℹ️ <span>অ্যাপ সম্পর্কে</span></div>
-          <div id="dotMenu-adminDocsItem" onclick="closeDotMenu();goTo('docs')" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)">📄 <span>ডকুমেন্টস</span></div>
-          <!-- Admin only -->
-          <div id="dotMenu-adminSection">
-            <div onclick="closeDotMenu();exportData()" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)">📤 <span>ব্যাকআপ / শেয়ার</span></div>
-            <div onclick="closeDotMenu();document.getElementById('importFileDot').click()" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)">📥 <span>ডেটা রিস্টোর</span></div>
-            <div id="dotMenuClearBtn" onclick="closeDotMenu();confirmClear()" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr);color:#dc2626">🗑️ <span>সব ডেটা মুছুন</span></div>
-          </div>
-          <!-- Member only -->
-          <div id="dotMenu-memberSection">
-            <div onclick="openModal('modal-mySummary')" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)">📊 <span>আমার সারসংক্ষেপ</span></div>
-          </div>
-          <div onclick="doLogout()" style="padding:13px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;color:#dc2626">🚪 <span>লগআউট</span></div>
-        </div>
-      </div>
-    </div>
-  </header>
+setInterval(function() {
+    var now = new Date().getTime();
+    var gap = countDate - now;
 
-  <!-- DASHBOARD -->
-  <div class="page active" id="page-dashboard">
-    <div class="sc">
-      <div class="hero">
-        <div class="label">মোট ফান্ড ব্যালেন্স</div>
-        <div class="amount"><small>৳</small> <span id="totalFund">০</span></div>
-        <div id="loanBreakdown" style="font-size:11px;opacity:.75;margin-top:2px;min-height:14px"></div>
-        <!-- Row 1: প্রকৃত ঋণ বাকি, active বিনিয়োগ -->
-        <div class="sub-row" style="flex-wrap:wrap;gap:8px;margin-top:10px">
-          <div class="si"><strong id="loanPrincipal">৳০</strong>প্রকৃত ঋণ বাকি</div>
-          <div class="si"><strong id="activeInvest">৳০</strong>বিনিয়োগ চলমান</div>
-        </div>
-        <!-- Row 2: আদায় মুনাফা, জরিমানা, ব্যয় -->
-        <div class="sub-row" style="flex-wrap:wrap;gap:8px;margin-top:6px">
-          <div class="si"><strong id="intEarned">৳০</strong>আদায় মুনাফা</div>
-          <div class="si"><strong id="fineEarned">৳০</strong>জরিমানা</div>
-          <div class="si"><strong id="expenseTotal">৳০</strong>ব্যয় হয়েছে</div>
-        </div>
-      </div>
-      <!-- ইনভেস্টমেন্ট কার্ড -->
-      <div id="investCard" style="display:none;background:linear-gradient(135deg,#1a3a6b,#2563eb);border-radius:var(--r);padding:14px 16px;margin-bottom:13px;color:#fff;position:relative;overflow:hidden">
-        <div style="position:absolute;right:-6px;top:-14px;font-size:100px;opacity:.06;font-weight:700">📈</div>
-        <div style="font-size:11px;opacity:.8;margin-bottom:6px">📈 বিনিয়োগ সারসংক্ষেপ</div>
-        <div id="investSummary"></div>
-      </div>
-      <div class="qa-grid" id="quickActions"></div>
-      <div class="stats-grid">
-        <div class="stat stat-pro stat-members">
-          <div class="sp-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="4" fill="#1a6b3c"/><path d="M2 21c0-4 3.1-7 7-7s7 3 7 7" stroke="#1a6b3c" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="8" r="3" fill="#2d9657"/><path d="M22 21c0-3-1.8-5.5-4-6.3" stroke="#2d9657" stroke-width="2" stroke-linecap="round"/></svg></div>
-          <div class="sp-val" id="statMembers">০</div>
-          <div class="sp-lbl">মোট সদস্য</div>
-        </div>
-        <div class="stat stat-pro stat-deposit">
-          <div class="sp-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="20" height="14" rx="3" fill="#b07800"/><path d="M16 12a4 4 0 01-8 0" stroke="#fff4d6" stroke-width="2"/><path d="M7 6V4a1 1 0 011-1h8a1 1 0 011 1v2" stroke="#b07800" stroke-width="2"/></svg></div>
-          <div class="sp-val">৳<span id="statDep">০</span></div>
-          <div class="sp-lbl">মোট জমা</div>
-        </div>
-        <div class="stat stat-pro stat-activeloan">
-          <div class="sp-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#e63946" stroke-width="2"/><path d="M12 7v5l3 3" stroke="#e63946" stroke-width="2" stroke-linecap="round"/></svg></div>
-          <div class="sp-val" id="statActiveLoans">০</div>
-          <div class="sp-lbl">সক্রিয় ঋণ</div>
-        </div>
-        <div class="stat stat-pro stat-doneloan">
-          <div class="sp-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#2563eb" stroke-width="2"/><path d="M8 12l3 3 5-5" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="sp-val" id="statDoneLoans">০</div>
-          <div class="sp-lbl">সম্পন্ন ঋণ</div>
-        </div>
-      </div>
+    var d = Math.floor(gap / (1000 * 60 * 60 * 24));
+    var h = Math.floor((gap % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    var m = Math.floor((gap % (1000 * 60 * 60)) / (1000 * 60));
+    var s = Math.floor((gap % (1000 * 60)) / 1000);
 
-      <!-- সাম্প্রতিক লেনদেন — ক্যাটাগরি ট্যাব -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div class="stitle" style="margin-bottom:0">🕐 সাম্প্রতিক লেনদেন</div>
-      </div>
-      <div class="ttabs" id="txnCatTabs" style="margin-bottom:10px">
-        <button class="ttab active" onclick="filterTxns('all',this)">সব</button>
-        <button class="ttab" onclick="filterTxns('dep',this)">💰 জমা</button>
-        <button class="ttab" onclick="filterTxns('loan',this)">🏦 ঋণ</button>
-        <button class="ttab" onclick="filterTxns('inst',this)">📲 কিস্তি</button>
-      </div>
-      <div id="recentTxns"></div>
-    </div>
-  </div>
+    document.getElementById("days").innerText = d;
+    document.getElementById("hours").innerText = h;
+    document.getElementById("minutes").innerText = m;
+    document.getElementById("seconds").innerText = s;
 
-  <!-- MEMBERS -->
-  <div class="page" id="page-members">
-    <div class="sc">
-      <div class="stitle">👥 সদস্য তালিকা</div>
+}, 1000);
+</script>
+
+</body>
+</html>👥 সদস্য তালিকা</div>
       <div class="search-bar"><span>🔍</span><input type="text" placeholder="সদস্য খুঁজুন..." id="memberSearch" oninput="renderMembers(this.value)"></div>
       <div id="pendingRegDiv"></div>
       <div id="membersList"></div>
