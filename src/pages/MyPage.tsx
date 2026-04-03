@@ -36,8 +36,11 @@ export const MyPage: React.FC<MyPageProps> = ({ currentUser, onEditProfile, onAc
       setInstallments(snap.docs.map(d => d.data() as Installment));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'installments'));
 
-    const unsubReqs = onSnapshot(query(collection(db, 'requests'), where('member_id', '==', currentUser.id), orderBy('created_at', 'desc')), (snap) => {
-      setRequests(snap.docs.map(d => ({ ...d.data(), id: d.id } as Request)));
+    const unsubReqs = onSnapshot(query(collection(db, 'requests'), where('member_id', '==', currentUser.id)), (snap) => {
+      const reqs = snap.docs.map(d => ({ ...d.data(), id: d.id } as Request));
+      // Sort client-side to avoid index requirement
+      reqs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setRequests(reqs);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'requests'));
 
     setLoading(false);

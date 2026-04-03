@@ -16,8 +16,8 @@ import {
   Timestamp,
   getDocFromServer
 } from 'firebase/firestore';
-import { signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { User, Role, AppSettings, Investment, Contact } from './types';
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { User, Role, AppSettings } from './types';
 import { Header } from './components/Header';
 import { BottomNav, Page } from './components/BottomNav';
 import { Toast } from './components/Toast';
@@ -38,7 +38,11 @@ import {
   Moon, 
   Sun,
   MoreVertical,
-  Clipboard
+  Clipboard,
+  Medal,
+  LineChart,
+  CloudUpload,
+  CloudDownload
 } from 'lucide-react';
 
 // Pages
@@ -47,12 +51,12 @@ import { Members } from './pages/Members';
 import { Deposits } from './pages/Deposits';
 import { Loans } from './pages/Loans';
 import { Reports } from './pages/Reports';
-import { Requests } from './pages/Requests';
 import { Settings } from './pages/Settings';
 import { MyPage } from './pages/MyPage';
 import { Modals } from './components/Modals';
 import { MemberDetails } from './components/MemberDetails';
-import { hashPin } from './lib/crypto';
+import { NotificationsModal } from './components/NotificationsModal';
+import { hashPin, normalizeDigits } from './lib/crypto';
 import { handleFirestoreError, OperationType } from './lib/firestore-utils';
 
 export default function App() {
@@ -77,21 +81,17 @@ export default function App() {
   const [isInvestDetailsOpen, setIsInvestDetailsOpen] = useState(false);
   const [isContactsOpen, setIsContactsOpen] = useState(false);
   const [isDocsOpen, setIsDocsOpen] = useState(false);
-  const [isRequestOpen, setIsRequestOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [pendingRegs, setPendingRegs] = useState<any[]>([]);
 
-  const [investments, setInvestments] = useState<Investment[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-
-  useEffect(() => {
-    if (!user) return;
-    const unsubInv = onSnapshot(collection(db, 'investments'), (snap) => {
-      setInvestments(snap.docs.map(d => ({ ...d.data(), id: d.id } as Investment)));
-    });
-    const unsubContacts = onSnapshot(collection(db, 'contacts'), (snap) => {
-      setContacts(snap.docs.map(d => ({ ...d.data(), id: d.id } as Contact)));
-    });
-    return () => { unsubInv(); unsubContacts(); };
-  }, [user]);
+  const [investments, setInvestments] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [members, setMembers] = useState<User[]>([]);
+  const [deposits, setDeposits] = useState<any[]>([]);
+  const [installments, setInstallments] = useState<any[]>([]);
+  const [loans, setLoans] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   // Member details state
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
@@ -127,9 +127,8 @@ export default function App() {
           await signInAnonymously(auth);
         } catch (e: any) {
           console.error("Anonymous sign-in failed", e);
-          const projectId = auth.app.options.projectId;
           if (e.code === 'auth/admin-restricted-operation') {
-            const msg = `⚠️ ফায়ারবেস প্রজেক্ট (${projectId})-এ Anonymous Auth চালু করা নেই। অনুগ্রহ করে নিশ্চিত করুন যে আপনি সঠিক প্রজেক্টে এটি চালু করেছেন।`;
+            const msg = `⚠️ ফায়ারবেস কনসোলে 'Anonymous Auth' চালু করা নেই। অনুগ্রহ করে Firebase Console > Authentication > Sign-in method-এ গিয়ে এটি Enable করুন।`;
             showToast(msg);
             console.warn(msg);
           } else {
@@ -151,18 +150,100 @@ export default function App() {
   useEffect(() => {
     if (!isAuthReady) return;
 
-    // Load settings
-    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'main'), (doc) => {
-      if (doc.exists()) {
-        setSettings(doc.data() as AppSettings);
+    // Load settings (publicly readable by auth users)
+    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'main'), (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(docSnap.data() as AppSettings);
+      } else {
+        // Initialize default settings if they don't exist
+        const defaultSettings: AppSettings = {
+          id: 'main',
+          monthly_deposit: 500,
+          interest_rate: 10,
+          excel_link: '',
+          super_admin_phone: '01796369416',
+          super_admin_pin_hash: '' // Will be set later or used for bootstrap
+        };
+        setDoc(doc(db, 'settings', 'main'), defaultSettings).catch(console.error);
+        setSettings(defaultSettings);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'settings/main');
     });
 
+    // If no user is logged in, only load settings
+    if (!user) {
+      setLoading(false);
+      return () => unsubscribeSettings();
+    }
+
+    // Load investments for details modal
+    const unsubscribeInv = onSnapshot(collection(db, 'investments'), (snap) => {
+      setInvestments(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'investments'));
+
+    // Load contacts for contacts modal
+    const unsubscribeContacts = onSnapshot(collection(db, 'contacts'), (snap) => {
+      setContacts(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'contacts'));
+
+    // Load general notifications for members
+    const qNotifs = user.role === 'admin' 
+      ? query(collection(db, 'notifications'), orderBy('sent_at', 'desc'))
+      : query(collection(db, 'notifications'), where('target', 'in', [user.id, 'all']), orderBy('sent_at', 'desc'));
+
+    const unsubscribeNotifs = onSnapshot(qNotifs, (snap) => {
+      setNotifications(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'notifications'));
+
+    let unsubscribeMembers = () => {};
+    let unsubscribeDeposits = () => {};
+    let unsubscribeInstallments = () => {};
+    let unsubscribeLoans = () => {};
+    let unsubscribeRequests = () => {};
+    let unsubscribeRegs = () => {};
+
+    // Admin-only listeners
+    if (user.role === 'admin') {
+      unsubscribeMembers = onSnapshot(collection(db, 'members'), (snap) => {
+        setMembers(snap.docs.map(d => ({ ...d.data(), id: d.id } as User)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'members'));
+
+      unsubscribeDeposits = onSnapshot(collection(db, 'deposits'), (snap) => {
+        setDeposits(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'deposits'));
+
+      unsubscribeInstallments = onSnapshot(collection(db, 'installments'), (snap) => {
+        setInstallments(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'installments'));
+
+      unsubscribeLoans = onSnapshot(collection(db, 'loans'), (snap) => {
+        setLoans(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'loans'));
+
+      unsubscribeRequests = onSnapshot(query(collection(db, 'requests'), where('status', '==', 'pending')), (snap) => {
+        setPendingRequests(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'requests'));
+
+      unsubscribeRegs = onSnapshot(collection(db, 'pending_regs'), (snap) => {
+        setPendingRegs(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'pending_regs'));
+    }
+
     setLoading(false);
-    return () => unsubscribeSettings();
-  }, [isAuthReady]);
+    return () => {
+      unsubscribeSettings();
+      unsubscribeInv();
+      unsubscribeContacts();
+      unsubscribeMembers();
+      unsubscribeDeposits();
+      unsubscribeInstallments();
+      unsubscribeLoans();
+      unsubscribeNotifs();
+      unsubscribeRequests();
+      unsubscribeRegs();
+    };
+  }, [isAuthReady, user]);
 
   const showToast = (msg: string) => setToastMessage(msg);
 
@@ -189,12 +270,10 @@ export default function App() {
 
   const handleAction = (action: string) => {
     if (action === 'add_member') setIsAddMemberOpen(true);
-    if (action === 'add_deposit') setIsAddDepositOpen(true);
-    if (action === 'add_loan') setIsAddLoanOpen(true);
-    if (action === 'add_installment') setIsAddInstallmentOpen(true);
-    if (action === 'req_deposit' || action === 'req_loan' || action === 'req_installment') setIsRequestOpen(true);
+    if (action === 'add_deposit' || action === 'req_deposit') setIsAddDepositOpen(true);
+    if (action === 'add_loan' || action === 'req_loan') setIsAddLoanOpen(true);
+    if (action === 'add_installment' || action === 'req_installment') setIsAddInstallmentOpen(true);
     if (action === 'goto_mypage') setActivePage('mypage');
-    if (action === 'goto_requests') setActivePage('requests');
   };
 
   return (
@@ -210,6 +289,25 @@ export default function App() {
             )}>
               {user.role === 'admin' ? '👑 অ্যাডমিন' : '👤 সদস্য'}
             </span>
+            <button 
+              onClick={() => setIsNotificationsOpen(true)}
+              className="w-[34px] h-[34px] bg-white/15 rounded-lg flex items-center justify-center text-white relative active:bg-white/30 transition-colors"
+            >
+              <Bell className="w-4 h-4" />
+              {user.role === 'admin' ? (
+                (pendingRequests.length + pendingRegs.length) > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-danger text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white">
+                    {pendingRequests.length + pendingRegs.length}
+                  </span>
+                )
+              ) : (
+                notifications.filter(n => !n.read_by?.includes(user.id)).length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-danger text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white">
+                    {notifications.filter(n => !n.read_by?.includes(user.id)).length}
+                  </span>
+                )
+              )}
+            </button>
             <button 
               onClick={() => setIsMenuOpen(true)}
               className="w-[34px] h-[34px] bg-white/15 rounded-lg flex items-center justify-center text-white text-base active:bg-white/30 transition-colors"
@@ -231,10 +329,9 @@ export default function App() {
         )}
         {activePage === 'deposits' && <Deposits currentUser={user} onAddDeposit={() => setIsAddDepositOpen(true)} />}
         {activePage === 'loans' && <Loans currentUser={user} onAddLoan={() => setIsAddLoanOpen(true)} onInstallment={() => setIsAddInstallmentOpen(true)} />}
-        {activePage === 'reports' && <Reports />}
-        {activePage === 'requests' && <Requests showToast={showToast} />}
+        {activePage === 'reports' && <Reports currentUser={user} />}
         {activePage === 'settings' && <Settings currentUser={user} showToast={showToast} />}
-        {activePage === 'mypage' && <MyPage currentUser={user} onEditProfile={() => {}} onAction={handleAction} />}
+        {activePage === 'mypage' && <MyPage currentUser={user} onEditProfile={() => { setMemberToEdit(user); setIsAddMemberOpen(true); }} onAction={handleAction} />}
       </main>
 
       <BottomNav activePage={activePage} onPageChange={setActivePage} role={user.role} />
@@ -246,16 +343,8 @@ export default function App() {
         isAddDepositOpen={isAddDepositOpen} setIsAddDepositOpen={setIsAddDepositOpen}
         isAddLoanOpen={isAddLoanOpen} setIsAddLoanOpen={setIsAddLoanOpen}
         isAddInstallmentOpen={isAddInstallmentOpen} setIsAddInstallmentOpen={setIsAddInstallmentOpen}
-        isTermsOpen={isTermsOpen} setIsTermsOpen={setIsTermsOpen}
-        isAboutOpen={isAboutOpen} setIsAboutOpen={setIsAboutOpen}
-        isInvestDetailsOpen={isInvestDetailsOpen} setIsInvestDetailsOpen={setIsInvestDetailsOpen}
-        isContactsOpen={isContactsOpen} setIsContactsOpen={setIsContactsOpen}
-        isDocsOpen={isDocsOpen} setIsDocsOpen={setIsDocsOpen}
-        isRequestOpen={isRequestOpen} setIsRequestOpen={setIsRequestOpen}
         currentUser={user} settings={settings} showToast={showToast}
         editMember={memberToEdit}
-        investments={investments}
-        contacts={contacts}
       />
 
       <MemberDetails 
@@ -267,57 +356,177 @@ export default function App() {
         showToast={showToast}
       />
 
+      <NotificationsModal 
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        pendingRequests={pendingRequests}
+        pendingRegs={pendingRegs}
+        members={members}
+        deposits={deposits}
+        installments={installments}
+        loans={loans}
+        notifications={notifications}
+        currentUser={user}
+        showToast={showToast}
+      />
+
       {/* Menu Modal */}
-      <Modal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} title="মেনু" size="sm">
-        <div className="space-y-1">
-          <div className="flex items-center justify-between p-3 px-4 bg-app-bg-secondary rounded-xl mb-2">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
-                <Moon className="w-4 h-4" />
+      <Modal 
+        isOpen={isMenuOpen} 
+        onClose={() => setIsMenuOpen(false)} 
+        hideHeader 
+        position="top-right"
+        size="sm"
+        disableAnimation
+        noPadding
+      >
+        <div className="bg-white overflow-hidden">
+          {/* Dark Mode Toggle */}
+          <div className="flex items-center justify-between py-4 px-5 border-b border-app-border/5">
+            <div className="flex items-center gap-4">
+              <div className="text-[#FBBF24]">
+                <Moon className="w-5 h-5 fill-current" />
               </div>
-              <span className="text-sm font-bold">ডার্ক মোড</span>
+              <span className="text-[14px] font-bold text-app-text-primary">ডার্ক মোড</span>
             </div>
             <button 
               onClick={toggleDarkMode}
               className={cn(
-                "w-12 h-6 rounded-full transition-all relative",
-                isDarkMode ? "bg-primary" : "bg-app-border"
+                "w-11 h-6 rounded-full transition-all relative p-1",
+                isDarkMode ? "bg-primary" : "bg-slate-200"
               )}
             >
               <div className={cn(
-                "w-4 h-4 bg-white rounded-full absolute top-1 transition-all",
-                isDarkMode ? "right-1" : "left-1"
+                "w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300",
+                isDarkMode ? "translate-x-5" : "translate-x-0"
               )} />
             </button>
           </div>
 
-          {[
-            { icon: <Clipboard className="w-4 h-4" />, label: 'ফাউন্ডেশনের শর্তাবলী', color: 'text-blue-600', bg: 'bg-blue-50', onClick: () => setIsTermsOpen(true) },
-            { icon: <TrendingUp className="w-4 h-4" />, label: 'বিনিয়োগের বিস্তারিত', color: 'text-green-600', bg: 'bg-green-50', onClick: () => setIsInvestDetailsOpen(true) },
-            { icon: <UserCheck className="w-4 h-4" />, label: 'ফান্ডে দায়িত্বরত ব্যক্তি', color: 'text-indigo-600', bg: 'bg-indigo-50', onClick: () => setIsContactsOpen(true) },
-            { icon: <Info className="w-4 h-4" />, label: 'অ্যাপ সম্পর্কে', color: 'text-purple-600', bg: 'bg-purple-50', onClick: () => setIsAboutOpen(true) },
-            { icon: <FileText className="w-4 h-4" />, label: 'ডকুমেন্টস', color: 'text-amber-600', bg: 'bg-amber-50', onClick: () => setIsDocsOpen(true) },
-            { icon: <Share2 className="w-4 h-4" />, label: 'ব্যাকআপ / শেয়ার', color: 'text-teal-600', bg: 'bg-teal-50', onClick: () => {} },
-            { icon: <Download className="w-4 h-4" />, label: 'ডেটা রিস্টোর', color: 'text-cyan-600', bg: 'bg-cyan-50', onClick: () => {} },
-            { icon: <Trash2 className="w-4 h-4" />, label: 'সব ডেটা মুছুন', color: 'text-danger', bg: 'bg-red-50', onClick: () => {} },
-            { icon: <LogOut className="w-4 h-4" />, label: 'লগআউট', color: 'text-danger', bg: 'bg-red-50', onClick: handleLogout },
-          ].map((item, i) => (
-            <button 
-              key={i}
-              onClick={() => { item.onClick(); setIsMenuOpen(false); }}
-              className="w-full flex items-center gap-3 p-3 px-4 hover:bg-app-bg-secondary active:bg-app-bg-secondary rounded-xl transition-colors"
-            >
-              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", item.bg, item.color)}>
-                {item.icon}
-              </div>
-              <span className="text-sm font-bold text-app-text-secondary">{item.label}</span>
-            </button>
-          ))}
+          {/* Menu Items List */}
+          <div className="divide-y divide-app-border/5">
+            {[
+              { icon: <Clipboard className="w-5 h-5 text-amber-700/60" />, label: 'ফাউন্ডেশনের শর্তাবলী', onClick: () => setIsTermsOpen(true) },
+              { icon: <LineChart className="w-5 h-5 text-red-500/80" />, label: 'বিনিয়োগের বিস্তারিত', onClick: () => setIsInvestDetailsOpen(true) },
+              { icon: <Medal className="w-5 h-5 text-blue-500" />, label: 'ফান্ডে দায়িত্বরত ব্যক্তি', onClick: () => setIsContactsOpen(true) },
+              { icon: <Info className="w-5 h-5 text-blue-400" />, label: 'অ্যাপ সম্পর্কে', onClick: () => setIsAboutOpen(true) },
+              { icon: <CloudUpload className="w-5 h-5 text-orange-500" />, label: 'ডেটা ব্যাকআপ', onClick: () => {} },
+              { icon: <CloudDownload className="w-5 h-5 text-orange-600" />, label: 'ডেটা রিস্টোর', onClick: () => {} },
+              { icon: <Trash2 className="w-5 h-5 text-red-500" />, label: 'সব ডেটা মুছুন', color: 'text-red-600', onClick: () => {} },
+              { icon: <LogOut className="w-5 h-5 text-red-500" />, label: 'লগআউট', color: 'text-red-600', onClick: handleLogout },
+            ].map((item, i) => (
+              <button 
+                key={i}
+                onClick={() => { item.onClick(); setIsMenuOpen(false); }}
+                className="w-full flex items-center gap-4 py-4.5 px-5 hover:bg-app-bg-secondary active:bg-app-bg-secondary transition-colors text-left"
+              >
+                <div className="flex-shrink-0">
+                  {item.icon}
+                </div>
+                <span className={cn(
+                  "text-[14px] font-bold",
+                  item.color || "text-app-text-secondary"
+                )}>
+                  {item.label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       </Modal>
 
       {/* Static Content Modals */}
+      <Modal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} title="ফাউন্ডেশনের শর্তাবলী">
+        <div className="prose prose-sm max-h-[60vh] overflow-y-auto p-2">
+          <h4 className="text-primary">১. সদস্যপদ</h4>
+          <p>ফাউন্ডেশনের সদস্য হতে হলে নির্ধারিত ফি প্রদান করতে হবে এবং নিয়মিত মাসিক জমা দিতে হবে।</p>
+          <h4 className="text-primary">২. সঞ্চয় ও ঋণ</h4>
+          <p>প্রতি মাসের ১০ তারিখের মধ্যে মাসিক জমা দিতে হবে। ঋণ গ্রহণের ক্ষেত্রে নির্দিষ্ট শর্তাবলী প্রযোজ্য হবে।</p>
+          {/* Add more content as needed */}
+        </div>
+      </Modal>
 
+      <Modal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} title="অ্যাপ সম্পর্কে">
+        <div className="text-center p-4 space-y-4">
+          <div className="text-5xl">🤝</div>
+          <div>
+            <h3 className="font-serif text-lg font-bold text-primary">বন্ধুমহল ফাউন্ডেশন</h3>
+            <p className="text-xs text-app-text-muted">ভার্সন ৩.০.০</p>
+          </div>
+          <p className="text-sm text-app-text-secondary leading-relaxed">
+            এটি একটি সঞ্চয় ও ঋণ ব্যবস্থাপনা অ্যাপ। বন্ধুদের মধ্যে স্বচ্ছতা ও সহজ হিসাব রাখার জন্য এটি তৈরি করা হয়েছে।
+          </p>
+          <div className="pt-4 border-t border-app-border">
+            <p className="text-[10px] text-app-text-muted">© ২০২৪ বন্ধুমহল ফাউন্ডেশন। সর্বস্বত্ব সংরক্ষিত।</p>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isInvestDetailsOpen} onClose={() => setIsInvestDetailsOpen(false)} title="📈 বিনিয়োগের বিস্তারিত">
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto p-1">
+          {investments.length === 0 ? (
+            <div className="text-center py-8 text-app-text-muted text-xs italic">কোনো বিনিয়োগ নেই</div>
+          ) : (
+            investments.map(inv => (
+              <div key={inv.id} className={cn(
+                "p-3 rounded-xl border",
+                inv.status === 'active' ? "bg-blue-50 border-blue-100" : "bg-green-50 border-green-100"
+              )}>
+                <div className="flex justify-between items-center mb-1">
+                  <div className="text-xs font-bold">{inv.title}</div>
+                  <span className={cn(
+                    "text-[8px] font-bold px-1.5 py-0.5 rounded-full",
+                    inv.status === 'active' ? "bg-blue-100 text-blue-600" : "bg-green-100 text-green-600"
+                  )}>
+                    {inv.status === 'active' ? 'চলমান' : 'সম্পন্ন'}
+                  </span>
+                </div>
+                <div className="text-[10px] text-app-text-muted mb-2">📅 {inv.invest_date}</div>
+                <div className="flex justify-between text-[11px]">
+                  <span>বিনিয়োগ: <b>৳{inv.amount.toLocaleString('en-IN')}</b></span>
+                  <span>লাভ: <b className="text-blue-600">৳{inv.profit.toLocaleString('en-IN')}</b></span>
+                </div>
+                {inv.status === 'received' && (
+                  <div className="mt-2 pt-2 border-t border-green-200 text-[11px] text-green-700 font-bold">
+                    💰 ফেরত পেয়েছেন: ৳{inv.received_amount?.toLocaleString('en-IN')} ({inv.received_date})
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </Modal>
+
+      <Modal isOpen={isContactsOpen} onClose={() => setIsContactsOpen(false)} title="👤 ফান্ডে দায়িত্বরত ব্যক্তি">
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto p-1">
+          {contacts.length === 0 ? (
+            <div className="text-center py-8 text-app-text-muted text-xs italic">কেউ যোগ করা হয়নি</div>
+          ) : (
+            contacts.map(c => (
+              <div key={c.id} className="flex items-center gap-3 p-3 bg-app-bg-secondary rounded-xl">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                  {c.photo ? <img src={c.photo} className="w-full h-full rounded-full object-cover" /> : c.name[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold truncate">{c.name}</div>
+                  <div className="text-[10px] text-primary font-bold">{c.position || c.role}</div>
+                  <div className="text-[10px] text-app-text-muted">📞 {c.phone}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </Modal>
+
+      <Modal isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} title="📄 ডকুমেন্টস">
+        <div className="space-y-4 p-2">
+          <div className="p-4 bg-app-bg-secondary rounded-xl text-center">
+            <FileText className="w-10 h-10 text-primary mx-auto mb-2 opacity-50" />
+            <p className="text-xs text-app-text-muted italic">এখনো কোনো ডকুমেন্ট আপলোড করা হয়নি।</p>
+          </div>
+          <Button variant="gray" className="w-full" onClick={() => setIsDocsOpen(false)}>বন্ধ করুন</Button>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -341,7 +550,6 @@ function AuthScreen({ onLogin, showToast, settings }: AuthScreenProps) {
   const [regPhone, setRegPhone] = useState('');
   const [regPin, setRegPin] = useState('');
   const [regPinConfirm, setRegPinConfirm] = useState('');
-  const [isBootstrapping, setIsBootstrapping] = useState(false);
 
   const handleNumpad = (n: number) => {
     if (pinBuf.length >= 4) return;
@@ -359,64 +567,26 @@ function AuthScreen({ onLogin, showToast, settings }: AuthScreenProps) {
     setLoading(true);
     
     try {
-      const inputHash = await hashPin(phone, inputPin);
+      const normPhone = normalizeDigits(phone);
+      const inputHash = await hashPin(normPhone, inputPin);
       
       // 1. Super Admin Check
-      if (settings && inputHash === settings.super_admin_pin_hash && (settings.super_admin_phone === '' || phone === settings.super_admin_phone)) {
-        console.log("Super Admin Login detected");
-        if (auth.currentUser) {
-          try {
-            await setDoc(doc(db, 'roles', auth.currentUser.uid), { role: 'admin', phone, isSuperAdmin: true });
-            console.log("Super Admin role set successfully");
-          } catch (err: any) {
-            console.error("Super Admin setDoc(roles) failed:", err);
-            throw err;
-          }
-        } else {
-          console.warn("User not authenticated with Firebase. Permissions might be limited.");
-          showToast('⚠️ ফায়ারবেস অথেন্টিকেশন ব্যর্থ। কিছু ফিচার কাজ নাও করতে পারে।');
-        }
-        onLogin({ id: 'SUPER', name: 'সুপার অ্যাডমিন', phone, role: 'admin', isSuperAdmin: true });
-        return;
-      }
-
-      // If settings is missing, and it's the first time, we might need to bootstrap
-      if (!settings) {
-        showToast('⚠️ অ্যাপ সেটিংস লোড হচ্ছে না। অনুগ্রহ করে অপেক্ষা করুন বা রিস্টার্ট দিন।');
-        setPinBuf('');
-        setLoading(false);
+      if (settings && inputHash === settings.super_admin_pin_hash && (settings.super_admin_phone === '' || normPhone === settings.super_admin_phone)) {
+        onLogin({ id: 'SUPER', name: 'সুপার অ্যাডমিন', phone: normPhone, role: 'admin', isSuperAdmin: true });
         return;
       }
 
       // 2. Admin Check
-      console.log("Checking regular Admin login...");
-      let adminSnap;
-      try {
-        adminSnap = await getDocs(query(collection(db, 'admins'), where('phone', '==', phone), where('pin_hash', '==', inputHash)));
-        console.log("Admin check query completed, size:", adminSnap.size);
-      } catch (err: any) {
-        console.error("Admin getDocs failed:", err);
-        throw err;
-      }
-
+      const adminSnap = await getDocs(query(collection(db, 'admins'), where('phone', '==', normPhone), where('pin_hash', '==', inputHash)));
       if (!adminSnap.empty) {
         const adminDoc = adminSnap.docs[0];
         const adminData = adminDoc.data() as User;
         
-        // Link Firebase UID to Roles for Security Rules
+        // Link Firebase UID to Admin for Security Rules
         if (auth.currentUser) {
-          try {
-            await setDoc(doc(db, 'roles', auth.currentUser.uid), { role: 'admin', phone });
-            console.log("Admin role set successfully");
-            await updateDoc(doc(db, 'admins', adminDoc.id), { firebase_uid: auth.currentUser.uid });
-            console.log("Admin firebase_uid updated successfully");
-          } catch (err: any) {
-            console.error("Admin post-login updates failed:", err);
-            throw err;
-          }
-        } else {
-          console.warn("User not authenticated with Firebase. Permissions might be limited.");
-          showToast('⚠️ ফায়ারবেস অথেন্টিকেশন ব্যর্থ। কিছু ফিচার কাজ নাও করতে পারে।');
+          const firebaseUid = auth.currentUser.uid;
+          await updateDoc(doc(db, 'admins', adminDoc.id), { firebase_uid: firebaseUid });
+          adminData.firebase_uid = firebaseUid;
         }
         
         onLogin({ ...adminData, id: adminDoc.id, role: 'admin' });
@@ -424,34 +594,16 @@ function AuthScreen({ onLogin, showToast, settings }: AuthScreenProps) {
       }
 
       // 3. Member Check
-      console.log("Checking Member login...");
-      let memberSnap;
-      try {
-        memberSnap = await getDocs(query(collection(db, 'members'), where('phone', '==', phone), where('pin_hash', '==', inputHash)));
-        console.log("Member check query completed, size:", memberSnap.size);
-      } catch (err: any) {
-        console.error("Member getDocs failed:", err);
-        throw err;
-      }
-
+      const memberSnap = await getDocs(query(collection(db, 'members'), where('phone', '==', normPhone), where('pin_hash', '==', inputHash)));
       if (!memberSnap.empty) {
         const memberDoc = memberSnap.docs[0];
         const memberData = memberDoc.data() as User;
         
-        // Link Firebase UID to Roles for Security Rules
+        // Link Firebase UID to Member for Security Rules
         if (auth.currentUser) {
-          try {
-            await setDoc(doc(db, 'roles', auth.currentUser.uid), { role: 'member', phone });
-            console.log("Member role set successfully");
-            await updateDoc(doc(db, 'members', memberDoc.id), { firebase_uid: auth.currentUser.uid });
-            console.log("Member firebase_uid updated successfully");
-          } catch (err: any) {
-            console.error("Member post-login updates failed:", err);
-            throw err;
-          }
-        } else {
-          console.warn("User not authenticated with Firebase. Permissions might be limited.");
-          showToast('⚠️ ফায়ারবেস অথেন্টিকেশন ব্যর্থ। কিছু ফিচার কাজ নাও করতে পারে।');
+          const firebaseUid = auth.currentUser.uid;
+          await updateDoc(doc(db, 'members', memberDoc.id), { firebase_uid: firebaseUid });
+          memberData.firebase_uid = firebaseUid;
         }
         
         onLogin({ ...memberData, id: memberDoc.id, role: 'member' });
@@ -459,56 +611,18 @@ function AuthScreen({ onLogin, showToast, settings }: AuthScreenProps) {
       }
 
       // 4. Pending Check
-      console.log("Checking Pending login...");
-      let pendingSnap;
-      try {
-        pendingSnap = await getDocs(query(collection(db, 'pending_regs'), where('phone', '==', phone)));
-        console.log("Pending check query completed, size:", pendingSnap.size);
-      } catch (err: any) {
-        console.error("Pending getDocs failed:", err);
-        throw err;
-      }
+      const pendingSnap = await getDocs(query(collection(db, 'pending_regs'), where('phone', '==', normPhone)));
       if (!pendingSnap.empty) {
         showToast('⏳ আপনার নিবন্ধন অনুমোদনের অপেক্ষায় আছে');
       } else {
         showToast('❌ ফোন বা পিন সঠিক নয়');
       }
       setPinBuf('');
-    } catch (e: any) {
-      console.error("Login Error:", e);
-      if (e.message?.includes('permission-denied')) {
-        showToast('❌ অনুমতি নেই। ফায়ারবেস রুলস বা অথেন্টিকেশন চেক করুন।');
-      } else {
-        showToast(`❌ লগইন ব্যর্থ: ${e.message || 'অজানা সমস্যা'}`);
-      }
+    } catch (e) {
+      showToast('❌ লগইন ব্যর্থ হয়েছে');
       setPinBuf('');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleBootstrap = async () => {
-    setIsBootstrapping(true);
-    try {
-      const defaultPin = '1234';
-      const defaultPhone = '01700000000';
-      const pin_hash = await hashPin(defaultPhone, defaultPin);
-      
-      await setDoc(doc(db, 'settings', 'main'), {
-        monthly_deposit: 500,
-        interest_rate: 10,
-        excel_link: '',
-        super_admin_phone: defaultPhone,
-        super_admin_pin_hash: pin_hash
-      });
-      
-      showToast('✅ অ্যাপ ইনিশিয়ালাইজ হয়েছে। পিন: 1234');
-      setPhone(defaultPhone);
-    } catch (e: any) {
-      console.error("Bootstrap Error:", e);
-      showToast(`❌ ইনিশিয়ালাইজ ব্যর্থ: ${e.message}`);
-    } finally {
-      setIsBootstrapping(false);
     }
   };
 
@@ -519,42 +633,47 @@ function AuthScreen({ onLogin, showToast, settings }: AuthScreenProps) {
     
     setLoading(true);
     try {
-      const pin_hash = await hashPin(regPhone, regPin);
-      await addDoc(collection(db, 'pending_regs'), {
-        name: regName,
-        phone: regPhone,
-        pin_hash,
-        created_at: new Date().toISOString()
-      });
-      showToast('✅ নিবন্ধন অনুরোধ পাঠানো হয়েছে');
-      setTab('login');
-      setPhone(regPhone);
+      const normPhone = normalizeDigits(regPhone);
+      const pin_hash = await hashPin(normPhone, regPin);
+      
+      // Check if any admins exist
+      const adminSnap = await getDocs(collection(db, 'admins'));
+      const isFirstUser = adminSnap.empty;
+
+      if (isFirstUser && auth.currentUser) {
+        // First user becomes admin automatically
+        const adminData = {
+          name: regName,
+          phone: normPhone,
+          pin_hash,
+          role: 'admin',
+          join_date: new Date().toISOString(),
+          firebase_uid: auth.currentUser.uid
+        };
+        await setDoc(doc(db, 'admins', auth.currentUser.uid), adminData);
+        
+        showToast('✅ আপনি প্রথম ইউজার হিসেবে অ্যাডমিন হিসেবে নিবন্ধিত হয়েছেন');
+        onLogin({ 
+          ...adminData,
+          id: auth.currentUser.uid
+        } as User);
+      } else {
+        await addDoc(collection(db, 'pending_regs'), {
+          name: regName,
+          phone: normPhone,
+          pin_hash,
+          role: 'member',
+          firebase_uid: auth.currentUser.uid,
+          created_at: new Date().toISOString()
+        });
+        showToast('✅ নিবন্ধন অনুরোধ পাঠানো হয়েছে');
+        setTab('login');
+        setPhone(normPhone);
+      }
     } catch (e) {
       showToast('❌ নিবন্ধন ব্যর্থ হয়েছে');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      if (result.user.email === "sujonali9091@gmail.com") {
-        await setDoc(doc(db, 'roles', result.user.uid), { role: 'admin', email: result.user.email });
-        onLogin({ 
-          id: 'SUPER', 
-          name: result.user.displayName || 'সুপার অ্যাডমিন', 
-          phone: '01XXXXXXXXX', 
-          role: 'admin', 
-          isSuperAdmin: true,
-          photo: result.user.photoURL || undefined
-        });
-      } else {
-        showToast('⚠️ শুধুমাত্র অনুমোদিত ইমেইল দিয়ে লগইন সম্ভব');
-      }
-    } catch (e) {
-      showToast('❌ লগইন ব্যর্থ হয়েছে');
     }
   };
 
@@ -619,29 +738,6 @@ function AuthScreen({ onLogin, showToast, settings }: AuthScreenProps) {
                 <button onClick={() => handleNumpad(0)} className="p-4 text-xl font-bold bg-app-bg-secondary rounded-xl active:scale-92 transition-all">0</button>
                 <button onClick={() => doLogin(pinBuf)} className="p-4 text-xl font-bold bg-primary text-white rounded-xl active:scale-92 transition-all">✓</button>
               </div>
-
-              <div className="relative py-4">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-app-border"></div></div>
-                <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-app-bg px-2 text-app-text-muted font-bold">অথবা</span></div>
-              </div>
-
-              <button 
-                onClick={handleGoogleLogin}
-                className="w-full bg-white border-2 border-app-border hover:border-primary/30 text-app-text-secondary font-bold py-3.5 rounded-xl text-sm transition-all active:scale-95 flex items-center justify-center gap-3 shadow-sm"
-              >
-                <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
-                গুগল দিয়ে প্রবেশ (সুপার এডমিন)
-              </button>
-
-              {!settings && (
-                <button 
-                  onClick={handleBootstrap}
-                  disabled={isBootstrapping}
-                  className="w-full mt-4 bg-amber-50 border-2 border-amber-200 text-amber-700 font-bold py-3 rounded-xl text-xs transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  {isBootstrapping ? 'ইনিশিয়ালাইজ হচ্ছে...' : '⚙️ প্রথমবার ব্যবহার করছেন? ইনিশিয়ালাইজ করুন'}
-                </button>
-              )}
             </div>
           </div>
         ) : (

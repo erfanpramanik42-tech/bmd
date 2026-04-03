@@ -82,7 +82,6 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser, showToast }) =>
       setNewInvAmount('');
       setNewInvProfit('');
     } catch (e) {
-      handleFirestoreError(e, OperationType.WRITE, 'investments');
       showToast('❌ বিনিয়োগ যোগ করতে সমস্যা হয়েছে');
     } finally {
       setInvLoading(false);
@@ -237,7 +236,13 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser, showToast }) =>
     }
   };
 
-  const handleReceiveInvestment = async (e: React.FormEvent) => {
+  const handleReceiveInvestment = (inv: Investment) => {
+    setSelectedInv(inv);
+    setReceivedAmount((inv.amount + inv.profit).toString());
+    setIsReceiveInvOpen(true);
+  };
+
+  const confirmReceiveInvestment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedInv || !receivedAmount) return;
     
@@ -254,23 +259,15 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser, showToast }) =>
         received_amount: amount,
         received_date: new Date().toISOString().split('T')[0]
       });
-
       showToast('✅ বিনিয়োগের টাকা ফান্ডে যোগ হয়েছে');
       setIsReceiveInvOpen(false);
       setSelectedInv(null);
-      setReceivedAmount('');
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `investments/${selectedInv.id}`);
       showToast('❌ আপডেট করতে সমস্যা হয়েছে');
     } finally {
       setReceiveLoading(false);
     }
-  };
-
-  const openReceiveModal = (inv: Investment) => {
-    setSelectedInv(inv);
-    setReceivedAmount((inv.amount + inv.profit).toString());
-    setIsReceiveInvOpen(true);
   };
 
   const fmt = (num: number) => Math.round(num).toLocaleString('en-IN');
@@ -376,7 +373,7 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser, showToast }) =>
                     </span>
                     {i.status === 'active' && (
                       <button 
-                        onClick={() => openReceiveModal(i)}
+                        onClick={() => handleReceiveInvestment(i)}
                         className="text-[9px] bg-primary text-white px-2 py-0.5 rounded-md font-bold active:scale-95 transition-all"
                       >
                         বুঝে পেয়েছি
@@ -446,6 +443,32 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser, showToast }) =>
         </form>
       </Modal>
 
+      {/* Receive Investment Modal */}
+      <Modal isOpen={isReceiveInvOpen} onClose={() => setIsReceiveInvOpen(false)} title="💰 বিনিয়োগ ফেরত গ্রহণ">
+        <form onSubmit={confirmReceiveInvestment} className="space-y-4">
+          <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 mb-2">
+            <div className="text-xs font-bold text-blue-800">{selectedInv?.title}</div>
+            <div className="text-[10px] text-blue-600">মূল বিনিয়োগ: ৳{selectedInv ? fmt(selectedInv.amount) : 0}</div>
+            <div className="text-[10px] text-blue-600">সম্ভাব্য লাভ: ৳{selectedInv ? fmt(selectedInv.profit) : 0}</div>
+          </div>
+          <div>
+            <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">কত টাকা লাভসহ ফেরত পেয়েছেন? *</label>
+            <input 
+              type="number" 
+              value={receivedAmount}
+              onChange={(e) => setReceivedAmount(e.target.value)}
+              className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all" 
+              placeholder="৬০০০"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="gray" className="flex-1" onClick={() => setIsReceiveInvOpen(false)}>বাতিল</Button>
+            <Button type="submit" className="flex-2" loading={receiveLoading}>✅ বুঝে পেয়েছি</Button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Contacts / Persons in Charge */}
       <Card>
         <div className="flex justify-between items-center mb-4">
@@ -479,36 +502,6 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser, showToast }) =>
           )}
         </div>
       </Card>
-
-      {/* Receive Investment Modal */}
-      <Modal isOpen={isReceiveInvOpen} onClose={() => setIsReceiveInvOpen(false)} title="💰 বিনিয়োগ বুঝে নিন">
-        <form onSubmit={handleReceiveInvestment} className="space-y-4">
-          <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
-            <div className="text-xs font-bold text-blue-900 mb-1">{selectedInv?.title}</div>
-            <div className="flex justify-between text-[10px] text-app-text-muted">
-              <span>মূল বিনিয়োগ: ৳{selectedInv?.amount.toLocaleString('en-IN')}</span>
-              <span>সম্ভাব্য লাভ: ৳{selectedInv?.profit.toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-          
-          <div>
-            <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">কত টাকা লাভসহ ফেরত পেয়েছেন? (৳) *</label>
-            <input 
-              type="number" 
-              value={receivedAmount}
-              onChange={(e) => setReceivedAmount(e.target.value)}
-              className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all" 
-              placeholder="৬০০০"
-            />
-            <p className="text-[10px] text-app-text-muted mt-1">মূল টাকা + লাভ মিলিয়ে মোট অংকটি লিখুন।</p>
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <Button variant="gray" className="flex-1" onClick={() => setIsReceiveInvOpen(false)}>বাতিল</Button>
-            <Button type="submit" className="flex-2" loading={receiveLoading}>✅ বুঝে পেয়েছি</Button>
-          </div>
-        </form>
-      </Modal>
 
       {/* Add Contact Modal */}
       <Modal isOpen={isAddContactOpen} onClose={() => setIsAddContactOpen(false)} title="👤 নতুন কন্টাক্ট যোগ করুন">

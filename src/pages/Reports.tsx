@@ -7,7 +7,11 @@ import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import { TrendingUp, TrendingDown, Wallet, Banknote, PieChart, Users, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-export const Reports: React.FC = () => {
+interface ReportsProps {
+  currentUser: User;
+}
+
+export const Reports: React.FC<ReportsProps> = ({ currentUser }) => {
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [members, setMembers] = useState<User[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -18,6 +22,8 @@ export const Reports: React.FC = () => {
   const [cashEntries, setCashEntries] = useState<CashEntry[]>([]);
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+
+  const isAdmin = currentUser.role === 'admin';
 
   useEffect(() => {
     const unsubDeps = onSnapshot(collection(db, 'deposits'), (snap) => {
@@ -55,7 +61,7 @@ export const Reports: React.FC = () => {
     return () => {
       unsubDeps(); unsubMem(); unsubSettings(); unsubLoans(); unsubInst(); unsubInv(); unsubExp(); unsubCash();
     };
-  }, []);
+  }, [isAdmin, currentUser.id]);
 
   const fmt = (num: number) => Math.round(num).toLocaleString('en-IN');
   const n = (v: any) => Number(v) || 0;
@@ -75,7 +81,13 @@ export const Reports: React.FC = () => {
   const totalCashAdded = cashEntries.reduce((s, e) => e.type === 'out' ? s - Number(e.amount) : s + Number(e.amount), 0);
 
   const currentCash = totalDeposits + totalInstallments + totalInvestmentReturns + totalCashAdded - totalLoansDisbursed - totalExpenses - totalInvestmentsOut;
-  const totalLoanProfit = installments.reduce((s, i) => s + Number(i.interest || 0), 0);
+  
+  const totalLoanProfit = installments.reduce((s, i) => {
+    const l = loans.find(ln => ln.id === i.loan_id);
+    if (!l || !l.total_payable || !l.total_interest) return s;
+    return s + Number(i.amount) * (Number(l.total_interest) / Number(l.total_payable));
+  }, 0);
+
   const totalInvestmentProfit = investments.filter(i => i.status === 'received').reduce((s, i) => s + (Number(i.received_amount || 0) - Number(i.amount)), 0);
   const totalProfit = totalLoanProfit + totalInvestmentProfit;
 

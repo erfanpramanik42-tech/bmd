@@ -5,6 +5,24 @@ import { Deposit, Loan, Installment, Investment, Expense, User, CashEntry } from
 import { Card } from '../components/Card';
 import { cn } from '../lib/utils';
 
+import { 
+  TrendingUp, 
+  Wallet, 
+  Landmark, 
+  Receipt, 
+  ArrowDownLeft, 
+  ArrowUpRight,
+  PiggyBank,
+  HandCoins,
+  CreditCard,
+  BarChart3,
+  Users,
+  CheckCircle2,
+  History,
+  Clock,
+  UserPlus
+} from 'lucide-react';
+
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 
 interface DashboardProps {
@@ -22,6 +40,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAction }) =
   const [membersCount, setMembersCount] = useState(0);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [activeTab, setActiveTab] = useState<'all' | 'deposit' | 'loan' | 'investment' | 'expense'>('all');
+
+  const getCategoryIcon = (category: string, type: 'in' | 'out') => {
+    switch (category) {
+      case 'deposit':
+        return <PiggyBank className="w-4 h-4" />;
+      case 'loan':
+        return <HandCoins className="w-4 h-4" />;
+      case 'investment':
+        return <BarChart3 className="w-4 h-4" />;
+      case 'expense':
+        return <Receipt className="w-4 h-4" />;
+      default:
+        return type === 'in' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />;
+    }
+  };
 
   useEffect(() => {
     const unsubDeps = onSnapshot(collection(db, 'deposits'), (snap) => {
@@ -52,9 +85,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAction }) =
       setMembersCount(snap.size);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'members'));
 
-    const unsubReqs = onSnapshot(query(collection(db, 'requests'), where('status', '==', 'pending')), (snap) => {
-      setPendingRequestsCount(snap.size);
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'requests'));
+    let unsubReqs = () => {};
+    if (currentUser.role === 'admin') {
+      unsubReqs = onSnapshot(query(collection(db, 'requests'), where('status', '==', 'pending')), (snap) => {
+        setPendingRequestsCount(snap.size);
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'requests'));
+    }
 
     return () => {
       unsubDeps(); unsubLoans(); unsubInst(); unsubInv(); unsubExp(); unsubMem(); unsubCash(); unsubReqs();
@@ -92,7 +128,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAction }) =
     ...deposits.map(d => ({ id: d.id, title: 'জমা', amount: d.amount, date: d.date, type: 'in' as const, category: 'deposit' })),
     ...installments.map(i => ({ id: i.id, title: 'কিস্তি', amount: i.amount, date: i.date, type: 'in' as const, category: 'deposit' })),
     ...loans.map(l => ({ id: l.id, title: 'ঋণ প্রদান', amount: l.amount, date: l.date, type: 'out' as const, category: 'loan' })),
-    ...expenses.map(e => ({ id: e.id, title: e.title, amount: e.amount, date: e.date, type: 'out' as const, category: 'expense' })),
+    ...expenses.map(e => ({ id: e.id, title: e.title, amount: e.amount, date: e.date, type: e.type || 'out', category: 'expense' })),
     ...cashEntries.map(c => ({ id: c.id, title: c.title, amount: c.amount, date: c.date, type: c.type, category: 'expense' })),
     ...investments.filter(i => i.status === 'received').map(i => ({ 
       id: i.id, 
@@ -135,12 +171,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAction }) =
 
         <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/20">
           <div className="space-y-0.5">
-            <div className="text-[13px] font-bold">৳{fmt(interestEarned)}</div>
-            <div className="text-[11px] opacity-85">আদায় মুনাফা</div>
+            <div className="text-[13px] font-bold text-accent">৳{fmt(interestEarned + totalReceivedProfit)}</div>
+            <div className="text-[11px] opacity-85">মোট অর্জিত মুনাফা</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[13px] font-bold">৳{fmt(totalFine)}</div>
-            <div className="text-[11px] opacity-85">জরিমানা</div>
+            <div className="text-[11px] opacity-85">মোট জরিমানা</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[13px] font-bold">৳{fmt(totalActiveInv)}</div>
@@ -156,17 +192,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAction }) =
       <div className="grid grid-cols-4 gap-2">
         {currentUser.role === 'admin' ? (
           <>
-            <QuickAction icon="👤" label="সদস্য যোগ" onClick={() => onAction('add_member')} />
-            <QuickAction icon="💰" label="জমা" onClick={() => onAction('add_deposit')} />
-            <QuickAction icon="🏦" label="ঋণ দিন" onClick={() => onAction('add_loan')} />
-            <QuickAction icon="📲" label="কিস্তি" onClick={() => onAction('add_installment')} />
+            <QuickAction icon={<UserPlus className="w-6 h-6 text-blue-600" />} label="সদস্য যোগ" onClick={() => onAction('add_member')} />
+            <QuickAction icon={<Wallet className="w-6 h-6 text-amber-600" />} label="জমা" onClick={() => onAction('add_deposit')} />
+            <QuickAction icon={<Landmark className="w-6 h-6 text-primary" />} label="ঋণ দিন" onClick={() => onAction('add_loan')} />
+            <QuickAction icon={<span className="text-2xl">📲</span>} label="কিস্তি" onClick={() => onAction('add_installment')} />
           </>
         ) : (
           <>
-            <QuickAction icon="💰" label="জমা রিকোয়েস্ট" onClick={() => onAction('req_deposit')} />
-            <QuickAction icon="🏦" label="ঋণ রিকোয়েস্ট" onClick={() => onAction('req_loan')} />
-            <QuickAction icon="📲" label="কিস্তি রিকোয়েস্ট" onClick={() => onAction('req_installment')} />
-            <QuickAction icon="👤" label="আমার তথ্য" onClick={() => onAction('goto_mypage')} />
+            <QuickAction icon={<Wallet className="w-6 h-6 text-amber-600" />} label="জমা রিকোয়েস্ট" onClick={() => onAction('req_deposit')} />
+            <QuickAction icon={<Landmark className="w-6 h-6 text-primary" />} label="ঋণ রিকোয়েস্ট" onClick={() => onAction('req_loan')} />
+            <QuickAction icon={<span className="text-2xl">📲</span>} label="কিস্তি রিকোয়েস্ট" onClick={() => onAction('req_installment')} />
+            <QuickAction icon={<Users className="w-6 h-6 text-blue-600" />} label="আমার তথ্য" onClick={() => onAction('goto_mypage')} />
           </>
         )}
       </div>
@@ -195,7 +231,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAction }) =
       {investments.filter(i => i.status === 'active').length > 0 && (
         <div className="space-y-2.5">
           <h3 className="font-serif text-base font-bold flex items-center gap-2">
-            📈 চলমান বিনিয়োগ
+            <TrendingUp className="w-5 h-5 text-primary" /> চলমান বিনিয়োগ
           </h3>
           <div className="space-y-2">
             {investments.filter(i => i.status === 'active').map(inv => (
@@ -221,43 +257,47 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAction }) =
       )}
 
       <div className="grid grid-cols-2 gap-2.5">
-        <StatCard icon="👥" value={membersCount} label="মোট সদস্য" color="primary" />
-        <StatCard icon="💰" value={`৳${fmt(totalDeposits)}`} label="মোট জমা" color="accent" />
-        <StatCard icon="⏳" value={activeLoans.length} label="সক্রিয় ঋণ" color="danger" />
-        <StatCard icon="✅" value={loans.filter(l => l.status === 'completed').length} label="সম্পন্ন ঋণ" color="blue" />
+        <StatCard icon={<Users className="w-5 h-5" />} value={membersCount} label="মোট সদস্য" color="primary" />
+        <StatCard icon={<Wallet className="w-5 h-5" />} value={`৳${fmt(totalDeposits)}`} label="মোট জমা" color="accent" />
+        <StatCard icon={<HandCoins className="w-5 h-5" />} value={activeLoans.length} label="সক্রিয় ঋণ" color="danger" />
+        <StatCard icon={<CheckCircle2 className="w-5 h-5" />} value={loans.filter(l => l.status === 'completed').length} label="সম্পন্ন ঋণ" color="blue" />
       </div>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-serif text-base font-bold flex items-center gap-2">
-            🕐 সাম্প্রতিক লেনদেন
+            <History className="w-5 h-5 text-primary" /> সাম্প্রতিক লেনদেন
           </h3>
         </div>
 
         <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
           {[
-            { id: 'all', label: 'সব' },
-            { id: 'deposit', label: 'জমা' },
-            { id: 'loan', label: 'ঋণ' },
-            { id: 'investment', label: 'বিনিয়োগ' },
-            { id: 'expense', label: 'খরচ' },
+            { id: 'all', label: 'সব', icon: <TrendingUp className="w-3 h-3" /> },
+            { id: 'deposit', label: 'জমা', icon: <PiggyBank className="w-3 h-3" /> },
+            { id: 'loan', label: 'ঋণ', icon: <HandCoins className="w-3 h-3" /> },
+            { id: 'investment', label: 'বিনিয়োগ', icon: <BarChart3 className="w-3 h-3" /> },
+            { id: 'expense', label: 'খরচ', icon: <Receipt className="w-3 h-3" /> },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={cn(
-                "px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border",
+                "px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border flex items-center gap-1.5",
                 activeTab === tab.id 
                   ? "bg-primary text-white border-primary shadow-md" 
                   : "bg-white text-app-text-muted border-app-border"
               )}
             >
+              {tab.icon}
               {tab.label}
             </button>
           ))}
         </div>
 
-        <div className="space-y-2">
+        <div className={cn(
+          "space-y-2 pr-1",
+          filteredTransactions.length > 5 && "max-h-[340px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200"
+        )}>
           {filteredTransactions.length === 0 ? (
             <div className="text-center py-8 text-app-text-muted text-sm italic bg-app-card rounded-xl border border-dashed border-app-border">
               এই ক্যাটাগরিতে কোনো লেনদেন পাওয়া যায়নি
@@ -267,10 +307,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAction }) =
               <div key={`${tx.id}-${idx}`} className="flex items-center justify-between p-3 bg-app-card rounded-xl border border-app-border shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center text-sm",
+                    "w-9 h-9 rounded-full flex items-center justify-center relative",
                     tx.type === 'in' ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
                   )}>
-                    {tx.type === 'in' ? '↓' : '↑'}
+                    {getCategoryIcon(tx.category, tx.type)}
+                    <div className={cn(
+                      "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center text-[8px] font-bold",
+                      tx.type === 'in' ? "bg-green-500 text-white" : "bg-red-500 text-white"
+                    )}>
+                      {tx.type === 'in' ? '↓' : '↑'}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs font-bold text-app-text-primary">{tx.title}</div>
@@ -292,17 +338,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAction }) =
   );
 };
 
-const QuickAction = ({ icon, label, onClick }: { icon: string, label: string, onClick: () => void }) => (
+const QuickAction = ({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick: () => void }) => (
   <button 
     onClick={onClick}
-    className="flex flex-col items-center gap-1 p-3 bg-app-card rounded-app-sm shadow-app active:scale-95 transition-all"
+    className="flex flex-col items-center gap-1.5 p-3 bg-app-card rounded-app-sm shadow-app active:scale-95 transition-all border border-app-border/50"
   >
-    <span className="text-xl">{icon}</span>
+    <div className="mb-0.5">{icon}</div>
     <span className="text-[10px] font-bold text-app-text-secondary text-center leading-tight">{label}</span>
   </button>
 );
 
-const StatCard = ({ icon, value, label, color }: { icon: string, value: string | number, label: string, color: string }) => (
+const StatCard = ({ icon, value, label, color }: { icon: React.ReactNode, value: string | number, label: string, color: string }) => (
   <div className={cn(
     "p-3.5 rounded-app border-1.5 flex flex-col gap-1 shadow-app bg-app-card",
     color === 'primary' && "border-primary/25",
@@ -310,7 +356,13 @@ const StatCard = ({ icon, value, label, color }: { icon: string, value: string |
     color === 'danger' && "border-danger/25",
     color === 'blue' && "border-blue-500/25"
   )}>
-    <div className="text-lg mb-1">{icon}</div>
+    <div className={cn(
+      "mb-1",
+      color === 'primary' && "text-primary",
+      color === 'accent' && "text-amber-600",
+      color === 'danger' && "text-danger",
+      color === 'blue' && "text-blue-600"
+    )}>{icon}</div>
     <div className={cn(
       "text-xl font-extrabold tracking-tight leading-none",
       color === 'primary' && "text-primary",

@@ -97,7 +97,7 @@ export const Members: React.FC<MembersProps> = ({ currentUser, onMemberClick, on
               return paid < n(l.total_payable) - 0.01;
             });
 
-            const isMe = currentUser.id === m.id;
+            const isMe = currentUser.role === 'member' && currentUser.id === m.id;
 
             return (
               <Card 

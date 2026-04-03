@@ -5,38 +5,93 @@ import { cn } from '../lib/utils';
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  title: string;
+  title?: string;
   children: React.ReactNode;
   className?: string;
+  hideHeader?: boolean;
+  noPadding?: boolean;
+  position?: 'center' | 'top-right' | 'bottom';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'full';
+  disableAnimation?: boolean;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, className }) => {
+export const Modal: React.FC<ModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  title, 
+  children, 
+  className, 
+  hideHeader,
+  noPadding,
+  position = 'center',
+  size = 'md',
+  disableAnimation = false
+}) => {
+  const positionClasses = {
+    'center': 'items-center justify-center p-4',
+    'top-right': 'items-start justify-end pr-4 pt-18',
+    'bottom': 'items-end justify-center'
+  };
+
+  const sizeClasses = {
+    'xs': 'max-w-[240px]',
+    'sm': 'max-w-[320px]',
+    'md': 'max-w-[480px]',
+    'lg': 'max-w-[600px]',
+    'full': 'max-w-full'
+  };
+
+  const motionProps = disableAnimation ? {
+    initial: { opacity: 1, scale: 1, x: 0, y: 0 },
+    animate: { opacity: 1, scale: 1, x: 0, y: 0 },
+    exit: { opacity: 0 },
+    transition: { duration: 0 }
+  } : {
+    initial: position === 'top-right' ? { opacity: 0, scale: 0.95, x: 10, y: -10 } : 
+             position === 'bottom' ? { y: '100%' } : 
+             { opacity: 0, scale: 0.95, y: 20 },
+    animate: position === 'bottom' ? { y: 0 } : 
+             { opacity: 1, scale: 1, x: 0, y: 0 },
+    exit: position === 'top-right' ? { opacity: 0, scale: 0.95, x: 10, y: -10 } : 
+          position === 'bottom' ? { y: '100%' } : 
+          { opacity: 0, scale: 0.95, y: 20 },
+    transition: { type: 'spring', damping: 25, stiffness: 250 }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[500] flex items-end justify-center">
+        <div className={cn("fixed inset-0 z-[500] flex", positionClasses[position])}>
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/50 backdrop-blur-[3px]"
+            transition={disableAnimation ? { duration: 0 } : {}}
+            className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
           />
           <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            {...motionProps}
             className={cn(
-              'relative w-full max-w-[480px] bg-app-card rounded-t-app p-4 pb-8 max-h-[92vh] overflow-y-auto scrollbar-hide',
+              'relative w-full bg-white shadow-2xl overflow-hidden max-h-[95vh] flex flex-col',
+              position === 'bottom' ? 'rounded-t-[32px]' : 'rounded-[28px]',
+              sizeClasses[size],
               className
             )}
           >
-            <div className="w-9 h-1 bg-app-border rounded-full mx-auto mb-4" />
-            <h2 className="font-serif text-base font-bold mb-4 flex items-center gap-2">
-              {title}
-            </h2>
-            {children}
+            {!hideHeader && (
+              <div className="p-4 pb-0 shrink-0">
+                <div className="w-10 h-1 bg-app-border/30 rounded-full mx-auto mb-4" />
+                {title && (
+                  <h2 className="font-serif text-base font-bold mb-4 flex items-center gap-2">
+                    {title}
+                  </h2>
+                )}
+              </div>
+            )}
+            <div className={cn("overflow-y-auto scrollbar-hide flex-1", !noPadding && "p-4 pt-0")}>
+              {children}
+            </div>
           </motion.div>
         </div>
       )}

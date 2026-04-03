@@ -53,6 +53,8 @@ export const Loans: React.FC<LoansProps> = ({ currentUser, onAddLoan, onInstallm
     } else {
       filteredLoans = loans.filter(l => l.member_id !== currentUser.id);
     }
+    if (filter === 'active') filteredLoans = filteredLoans.filter(l => l.status === 'active');
+    if (filter === 'completed') filteredLoans = filteredLoans.filter(l => l.status === 'completed');
   }
 
   const fmt = (num: number) => Math.round(num).toLocaleString('en-IN');

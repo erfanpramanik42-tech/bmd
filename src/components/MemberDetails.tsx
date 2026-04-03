@@ -109,7 +109,7 @@ export const MemberDetails: React.FC<MemberDetailsProps> = ({
             <X className="w-5 h-5" />
           </button>
 
-          <div className="absolute inset-0 flex flex-col items-center justify-center pt-4">
+          <div className="absolute inset-0 flex flex-col items-center justify-center pb-6">
             <motion.div 
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -219,9 +219,10 @@ export const MemberDetails: React.FC<MemberDetailsProps> = ({
             </div>
             
             <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+              <DetailItem label="মোবাইল নম্বর" value={member.phone} />
+              <DetailItem label="এনআইডি" value={member.nid} />
               <DetailItem label="পিতার নাম" value={member.father_name} />
               <DetailItem label="মাতার নাম" value={member.mother_name} />
-              <DetailItem label="এনআইডি" value={member.nid} />
               <DetailItem label="পেশা" value={member.occupation} />
             </div>
 

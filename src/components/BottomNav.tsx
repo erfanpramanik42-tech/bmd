@@ -24,6 +24,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activePage, onPageChange, 
   ] : [
     { id: 'dashboard', icon: Home, label: 'হোম' },
     { id: 'members', icon: Users, label: 'সদস্যরা' },
+    { id: 'deposits', icon: Wallet, label: 'জমা' },
     { id: 'loans', icon: Landmark, label: 'ঋণ' },
     { id: 'mypage', icon: User, label: 'আমার' },
     { id: 'reports', icon: FileText, label: 'রিপোর্ট' },

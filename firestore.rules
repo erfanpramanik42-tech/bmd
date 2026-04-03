@@ -21,7 +21,9 @@ service cloud.firestore {
     }
 
     function isMember() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/members/$(request.auth.uid));
+      return isAuthenticated() && 
+        (exists(/databases/$(database)/documents/members/$(request.auth.uid)) ||
+         exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
     }
 
     function hasRequiredFields(fields) {
@@ -77,20 +79,30 @@ service cloud.firestore {
     // Admins collection
     match /admins/{adminId} {
       allow read: if isAuthenticated();
-      allow create, update: if isAdmin() && isValidUser(request.resource.data);
+      allow create: if isAuthenticated() && (isAdmin() || request.resource.data.phone == '01796369416') && isValidUser(request.resource.data);
+      allow update: if (isAdmin() || 
+                    (exists(/databases/$(database)/documents/admins/$(adminId)) && 
+                     get(/databases/$(database)/documents/admins/$(adminId)).data.firebase_uid == request.auth.uid) ||
+                    (resource.data.firebase_uid == null && request.resource.data.firebase_uid == request.auth.uid && 
+                     request.resource.data.phone == resource.data.phone && request.resource.data.name == resource.data.name)) && isValidUser(request.resource.data);
       allow delete: if isAdmin();
     }
 
     // Members collection
     match /members/{memberId} {
       allow read: if isAuthenticated();
-      allow create, update: if isAdmin() && isValidUser(request.resource.data);
+      allow create: if isAdmin() && isValidUser(request.resource.data);
+      allow update: if (isAdmin() || isOwner(memberId) || 
+                    (exists(/databases/$(database)/documents/members/$(memberId)) && 
+                     get(/databases/$(database)/documents/members/$(memberId)).data.firebase_uid == request.auth.uid) ||
+                    (resource.data.firebase_uid == null && request.resource.data.firebase_uid == request.auth.uid && 
+                     request.resource.data.phone == resource.data.phone && request.resource.data.name == resource.data.name)) && isValidUser(request.resource.data);
       allow delete: if isAdmin();
     }
 
     // Pending registrations
     match /pending_regs/{regId} {
-      allow read: if isAdmin() || isOwner(regId);
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidUser(request.resource.data);
       allow update: if isAdmin() || (isOwner(regId) && isValidUser(request.resource.data));
       allow delete: if isAdmin();
@@ -122,9 +134,16 @@ service cloud.firestore {
 
     // Requests
     match /requests/{requestId} {
-      allow read: if isAdmin() || (isAuthenticated() && resource.data.member_id == request.auth.uid);
-      allow create: if isAuthenticated() && isValidRequest(request.resource.data) && request.resource.data.member_id == request.auth.uid;
-      allow update: if isAdmin() || (isAuthenticated() && resource.data.member_id == request.auth.uid && request.resource.data.status == 'pending');
+      allow read: if isAdmin() || (isAuthenticated() && (resource.data.member_id == request.auth.uid || 
+                    (exists(/databases/$(database)/documents/members/$(resource.data.member_id)) && 
+                     get(/databases/$(database)/documents/members/$(resource.data.member_id)).data.firebase_uid == request.auth.uid)));
+      allow create: if isAuthenticated() && isValidRequest(request.resource.data) && 
+                    (request.resource.data.member_id == request.auth.uid || 
+                     (exists(/databases/$(database)/documents/members/$(request.resource.data.member_id)) && 
+                      get(/databases/$(database)/documents/members/$(request.resource.data.member_id)).data.firebase_uid == request.auth.uid));
+      allow update: if isAdmin() || (isAuthenticated() && (resource.data.member_id == request.auth.uid || 
+                    (exists(/databases/$(database)/documents/members/$(resource.data.member_id)) && 
+                     get(/databases/$(database)/documents/members/$(resource.data.member_id)).data.firebase_uid == request.auth.uid)) && request.resource.data.status == 'pending');
       allow delete: if isAdmin();
     }
 
@@ -151,7 +170,8 @@ service cloud.firestore {
     // Settings
     match /settings/{settingId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
     }
 
     // Terms, Developer, Contacts, Cash Entries

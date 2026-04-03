@@ -5,8 +5,6 @@ import { User, AppSettings, Loan } from '../types';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { hashPin } from '../lib/crypto';
-import { Phone, FileText, Info, TrendingUp, UserCheck, Clipboard } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 interface ModalsProps {
   isAddMemberOpen: boolean;
@@ -17,24 +15,10 @@ interface ModalsProps {
   setIsAddLoanOpen: (open: boolean) => void;
   isAddInstallmentOpen: boolean;
   setIsAddInstallmentOpen: (open: boolean) => void;
-  isRequestOpen: boolean;
-  setIsRequestOpen: (open: boolean) => void;
-  isTermsOpen: boolean;
-  setIsTermsOpen: (open: boolean) => void;
-  isAboutOpen: boolean;
-  setIsAboutOpen: (open: boolean) => void;
-  isInvestDetailsOpen: boolean;
-  setIsInvestDetailsOpen: (open: boolean) => void;
-  isContactsOpen: boolean;
-  setIsContactsOpen: (open: boolean) => void;
-  isDocsOpen: boolean;
-  setIsDocsOpen: (open: boolean) => void;
   currentUser: User;
   settings: AppSettings | null;
   showToast: (msg: string) => void;
   editMember?: User | null;
-  investments?: any[];
-  contacts?: any[];
 }
 
 export const Modals: React.FC<ModalsProps> = ({
@@ -42,32 +26,33 @@ export const Modals: React.FC<ModalsProps> = ({
   isAddDepositOpen, setIsAddDepositOpen,
   isAddLoanOpen, setIsAddLoanOpen,
   isAddInstallmentOpen, setIsAddInstallmentOpen,
-  isRequestOpen, setIsRequestOpen,
-  isTermsOpen, setIsTermsOpen,
-  isAboutOpen, setIsAboutOpen,
-  isInvestDetailsOpen, setIsInvestDetailsOpen,
-  isContactsOpen, setIsContactsOpen,
-  isDocsOpen, setIsDocsOpen,
   currentUser, settings, showToast,
-  editMember,
-  investments = [],
-  contacts = []
+  editMember
 }) => {
   const [members, setMembers] = useState<User[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
 
   useEffect(() => {
     if (isAddDepositOpen || isAddLoanOpen || isAddInstallmentOpen) {
+      if (currentUser.role === 'member') {
+        setDepMemberId(currentUser.id);
+        setLMemberId(currentUser.id);
+        setIMemberId(currentUser.id);
+      }
       getDocs(collection(db, 'members')).then(snap => {
         setMembers(snap.docs.map(d => ({ ...d.data(), id: d.id } as User)));
       });
     }
     if (isAddInstallmentOpen) {
-      getDocs(query(collection(db, 'loans'), where('status', '==', 'active'))).then(snap => {
+      const q = currentUser.role === 'admin' 
+        ? query(collection(db, 'loans'), where('status', '==', 'active'))
+        : query(collection(db, 'loans'), where('member_id', '==', currentUser.id), where('status', '==', 'active'));
+      
+      getDocs(q).then(snap => {
         setLoans(snap.docs.map(d => ({ ...d.data(), id: d.id } as Loan)));
       });
     }
-  }, [isAddDepositOpen, isAddLoanOpen, isAddInstallmentOpen]);
+  }, [isAddDepositOpen, isAddLoanOpen, isAddInstallmentOpen, currentUser]);
 
   // --- Add Member ---
   const [mName, setMName] = useState('');
@@ -132,8 +117,9 @@ export const Modals: React.FC<ModalsProps> = ({
       };
 
       if (editMember) {
-        await updateDoc(doc(db, 'members', editMember.id), memberData);
-        showToast('✅ সদস্য তথ্য আপডেট করা হয়েছে');
+        const collectionName = editMember.role === 'admin' ? 'admins' : 'members';
+        await updateDoc(doc(db, collectionName, editMember.id), memberData);
+        showToast('✅ তথ্য আপডেট করা হয়েছে');
       } else {
         await addDoc(collection(db, 'members'), {
           ...memberData,
@@ -158,18 +144,59 @@ export const Modals: React.FC<ModalsProps> = ({
     if (!depMemberId || !depMonth || !depAmount) { showToast('⚠️ সব ঘর পূরণ করুন'); return; }
     setDepLoading(true);
     try {
-      const date = new Date().toISOString().split('T')[0];
-      await addDoc(collection(db, 'deposits'), {
-        member_id: depMemberId, month: depMonth, amount: Number(depAmount),
-        fine: false, date
-      });
-      if (depFine > 0) {
-        await addDoc(collection(db, 'deposits'), {
-          member_id: depMemberId, month: depMonth, amount: Number(depFine),
-          fine: true, date, note: 'জরিমানা'
-        });
+      // Check if deposit already exists for this month (excluding fines)
+      const depQuery = query(
+        collection(db, 'deposits'), 
+        where('member_id', '==', depMemberId), 
+        where('month', '==', depMonth),
+        where('fine', '==', false)
+      );
+      const depSnap = await getDocs(depQuery);
+      if (!depSnap.empty) {
+        showToast('⚠️ এই মাসের জমা অলরেডি দেওয়া হয়েছে');
+        setDepLoading(false);
+        return;
       }
-      showToast('✅ জমা যোগ করা হয়েছে');
+
+      // Check for pending requests for this month
+      const reqQuery = query(
+        collection(db, 'requests'),
+        where('member_id', '==', depMemberId),
+        where('type', '==', 'deposit'),
+        where('status', '==', 'pending')
+      );
+      const reqSnap = await getDocs(reqQuery);
+      const hasPendingForMonth = reqSnap.docs.some(d => d.data().data?.month === depMonth);
+      
+      if (hasPendingForMonth) {
+        showToast('⚠️ এই মাসের জন্য একটি রিকোয়েস্ট অলরেডি পেন্ডিং আছে');
+        setDepLoading(false);
+        return;
+      }
+
+      const date = new Date().toISOString().split('T')[0];
+      if (currentUser.role === 'admin') {
+        await addDoc(collection(db, 'deposits'), {
+          member_id: depMemberId, month: depMonth, amount: Number(depAmount),
+          fine: false, date
+        });
+        if (depFine > 0) {
+          await addDoc(collection(db, 'deposits'), {
+            member_id: depMemberId, month: depMonth, amount: Number(depFine),
+            fine: true, date, note: 'জরিমানা'
+          });
+        }
+        showToast('✅ জমা যোগ করা হয়েছে');
+      } else {
+        await addDoc(collection(db, 'requests'), {
+          type: 'deposit',
+          member_id: currentUser.id,
+          data: { month: depMonth, amount: Number(depAmount) },
+          status: 'pending',
+          created_at: new Date().toISOString()
+        });
+        showToast('✅ জমার রিকোয়েস্ট পাঠানো হয়েছে');
+      }
       setIsAddDepositOpen(false);
     } catch (e) { showToast('❌ ব্যর্থ হয়েছে'); }
     finally { setDepLoading(false); }
@@ -187,16 +214,44 @@ export const Modals: React.FC<ModalsProps> = ({
     if (!lMemberId || !lAmount || !lInst) { showToast('⚠️ সব ঘর পূরণ করুন'); return; }
     setLLoading(true);
     try {
+      if (currentUser.role !== 'admin') {
+        // Check for pending loan requests
+        const q = query(
+          collection(db, 'requests'),
+          where('member_id', '==', currentUser.id),
+          where('type', '==', 'loan'),
+          where('status', '==', 'pending')
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          showToast('⚠️ আপনার একটি ঋণের রিকোয়েস্ট অলরেডি পেন্ডিং আছে');
+          setLLoading(false);
+          return;
+        }
+      }
+
       const date = new Date().toISOString().split('T')[0];
       const tp = Number(lAmount) + Number(lProfit);
       const rate = lAmount > 0 ? (lProfit / lAmount) * 100 : 0;
-      await addDoc(collection(db, 'loans'), {
-        member_id: lMemberId, amount: Number(lAmount), interest: rate,
-        installments: Number(lInst), date, purpose: lPurpose,
-        total_interest: Number(lProfit), total_payable: tp,
-        monthly_installment: tp / Number(lInst), status: 'active'
-      });
-      showToast('✅ ঋণ অনুমোদন হয়েছে');
+      
+      if (currentUser.role === 'admin') {
+        await addDoc(collection(db, 'loans'), {
+          member_id: lMemberId, amount: Number(lAmount), interest: rate,
+          installments: Number(lInst), date, purpose: lPurpose,
+          total_interest: Number(lProfit), total_payable: tp,
+          monthly_installment: tp / Number(lInst), status: 'active'
+        });
+        showToast('✅ ঋণ অনুমোদন হয়েছে');
+      } else {
+        await addDoc(collection(db, 'requests'), {
+          type: 'loan',
+          member_id: currentUser.id,
+          data: { amount: Number(lAmount), installments: Number(lInst), purpose: lPurpose },
+          status: 'pending',
+          created_at: new Date().toISOString()
+        });
+        showToast('✅ ঋণের রিকোয়েস্ট পাঠানো হয়েছে');
+      }
       setIsAddLoanOpen(false);
     } catch (e) { showToast('❌ ব্যর্থ হয়েছে'); }
     finally { setLLoading(false); }
@@ -212,11 +267,39 @@ export const Modals: React.FC<ModalsProps> = ({
     if (!iMemberId || !iLoanId || !iAmount) { showToast('⚠️ সব ঘর পূরণ করুন'); return; }
     setILoading(true);
     try {
+      if (currentUser.role !== 'admin') {
+        // Check for pending installment requests for this loan
+        const q = query(
+          collection(db, 'requests'),
+          where('member_id', '==', currentUser.id),
+          where('type', '==', 'installment'),
+          where('status', '==', 'pending')
+        );
+        const snap = await getDocs(q);
+        const hasPendingForLoan = snap.docs.some(d => d.data().data?.loan_id === iLoanId);
+        if (hasPendingForLoan) {
+          showToast('⚠️ এই ঋণের জন্য একটি কিস্তি রিকোয়েস্ট পেন্ডিং আছে');
+          setILoading(false);
+          return;
+        }
+      }
+
       const date = new Date().toISOString().split('T')[0];
-      await addDoc(collection(db, 'installments'), {
-        member_id: iMemberId, loan_id: iLoanId, amount: Number(iAmount), date
-      });
-      showToast('✅ কিস্তি যোগ হয়েছে');
+      if (currentUser.role === 'admin') {
+        await addDoc(collection(db, 'installments'), {
+          member_id: iMemberId, loan_id: iLoanId, amount: Number(iAmount), date
+        });
+        showToast('✅ কিস্তি যোগ হয়েছে');
+      } else {
+        await addDoc(collection(db, 'requests'), {
+          type: 'installment',
+          member_id: currentUser.id,
+          data: { loan_id: iLoanId, amount: Number(iAmount) },
+          status: 'pending',
+          created_at: new Date().toISOString()
+        });
+        showToast('✅ কিস্তির রিকোয়েস্ট পাঠানো হয়েছে');
+      }
       setIsAddInstallmentOpen(false);
     } catch (e) { showToast('❌ ব্যর্থ হয়েছে'); }
     finally { setILoading(false); }
@@ -224,72 +307,15 @@ export const Modals: React.FC<ModalsProps> = ({
 
   const fmt = (num: number) => Math.round(num).toLocaleString('en-IN');
 
-  // --- Request ---
-  const [reqType, setReqType] = useState<'deposit' | 'loan' | 'installment'>('deposit');
-  const [reqAmount, setReqAmount] = useState(0);
-  const [reqMonth, setReqMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [reqNote, setReqNote] = useState('');
-  const [reqLoading, setReqLoading] = useState(false);
-
-  const handleAddRequest = async () => {
-    if (!reqAmount) { showToast('⚠️ পরিমাণ লিখুন'); return; }
-    setReqLoading(true);
-    try {
-      await addDoc(collection(db, 'requests'), {
-        member_id: currentUser.id,
-        type: reqType,
-        data: { 
-          amount: Number(reqAmount), 
-          note: reqNote,
-          month: reqType === 'deposit' ? reqMonth : null
-        },
-        status: 'pending',
-        created_at: new Date().toISOString()
-      });
-      showToast('✅ অনুরোধ পাঠানো হয়েছে');
-      setIsRequestOpen(false);
-      setReqAmount(0);
-      setReqNote('');
-    } catch (e) { showToast('❌ ব্যর্থ হয়েছে'); }
-    finally { setReqLoading(false); }
-  };
-
   return (
     <>
-      {/* Request Modal */}
-      <Modal isOpen={isRequestOpen} onClose={() => setIsRequestOpen(false)} title="📝 অনুরোধ পাঠান">
-        <div className="space-y-4">
-          <div>
-            <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">অনুরোধের ধরন *</label>
-            <select value={reqType} onChange={(e) => setReqType(e.target.value as any)} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all bg-white">
-              <option value="deposit">মাসিক জমা</option>
-              <option value="loan">ঋণ</option>
-              <option value="installment">কিস্তি</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">পরিমাণ (৳) *</label>
-            <input type="number" value={reqAmount} onChange={(e) => setReqAmount(Number(e.target.value))} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all" placeholder="৳০০০" />
-          </div>
-          {reqType === 'deposit' && (
-            <div>
-              <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">মাস *</label>
-              <input type="month" value={reqMonth} onChange={(e) => setReqMonth(e.target.value)} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all bg-white" />
-            </div>
-          )}
-          <div>
-            <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">নোট (ঐচ্ছিক)</label>
-            <textarea value={reqNote} onChange={(e) => setReqNote(e.target.value)} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all" placeholder="বিস্তারিত লিখুন..." rows={3} />
-          </div>
-          <div className="flex gap-2 pt-2">
-            <Button variant="gray" className="flex-1" onClick={() => setIsRequestOpen(false)}>বাতিল</Button>
-            <Button className="flex-2" onClick={handleAddRequest} loading={reqLoading}>✅ অনুরোধ পাঠান</Button>
-          </div>
-        </div>
-      </Modal>
-
       {/* Add Member Modal */}
-      <Modal isOpen={isAddMemberOpen} onClose={() => setIsAddMemberOpen(false)} title={editMember ? "👤 সদস্য তথ্য এডিট করুন" : "👤 নতুন সদস্য যোগ করুন"}>
+      <Modal 
+        isOpen={isAddMemberOpen} 
+        onClose={() => setIsAddMemberOpen(false)} 
+        title={editMember ? "👤 সদস্য তথ্য এডিট করুন" : "👤 নতুন সদস্য যোগ করুন"}
+        position="bottom"
+      >
         <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1 pb-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
@@ -333,8 +359,30 @@ export const Modals: React.FC<ModalsProps> = ({
               <input type="text" value={mNomineeRelation} onChange={(e) => setMNomineeRelation(e.target.value)} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all" placeholder="সম্পর্ক" />
             </div>
             <div className="col-span-2">
-              <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">প্রোফাইল ছবি (URL)</label>
-              <input type="text" value={mPhoto} onChange={(e) => setMPhoto(e.target.value)} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all" placeholder="https://..." />
+              <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">প্রোফাইল ছবি</label>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-app-bg-secondary flex items-center justify-center overflow-hidden border-2 border-app-border shrink-0">
+                  {mPhoto ? <img src={mPhoto} alt="Profile" className="w-full h-full object-cover" /> : <div className="text-xl">👤</div>}
+                </div>
+                <div className="flex-1">
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setMPhoto(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }} 
+                    className="w-full text-xs text-app-text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all" 
+                  />
+                  <p className="text-[9px] text-app-text-muted mt-1">সর্বোচ্চ ১ মেগাবাইট। ছোট ছবি ব্যবহার করুন।</p>
+                </div>
+              </div>
             </div>
           </div>
           <div className="flex gap-2 pt-2 sticky bottom-0 bg-white pb-1">
@@ -345,11 +393,21 @@ export const Modals: React.FC<ModalsProps> = ({
       </Modal>
 
       {/* Add Deposit Modal */}
-      <Modal isOpen={isAddDepositOpen} onClose={() => setIsAddDepositOpen(false)} title="💰 মাসিক জমা যোগ করুন">
+      <Modal 
+        isOpen={isAddDepositOpen} 
+        onClose={() => setIsAddDepositOpen(false)} 
+        title={currentUser.role === 'admin' ? "💰 মাসিক জমা যোগ করুন" : "💰 জমার রিকোয়েস্ট পাঠান"}
+        position="bottom"
+      >
         <div className="space-y-4">
           <div>
             <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">সদস্য *</label>
-            <select value={depMemberId} onChange={(e) => setDepMemberId(e.target.value)} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all bg-white">
+            <select 
+              value={depMemberId} 
+              onChange={(e) => setDepMemberId(e.target.value)} 
+              disabled={currentUser.role === 'member'}
+              className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all bg-white disabled:bg-app-bg-secondary"
+            >
               <option value="">বেছে নিন...</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.name} ({m.phone})</option>)}
             </select>
@@ -381,24 +439,36 @@ export const Modals: React.FC<ModalsProps> = ({
       </Modal>
 
       {/* Add Loan Modal */}
-      <Modal isOpen={isAddLoanOpen} onClose={() => setIsAddLoanOpen(false)} title="🏦 ঋণ প্রদান করুন">
+      <Modal 
+        isOpen={isAddLoanOpen} 
+        onClose={() => setIsAddLoanOpen(false)} 
+        title={currentUser.role === 'admin' ? "🏦 ঋণ প্রদান করুন" : "🏦 ঋণের রিকোয়েস্ট পাঠান"}
+        position="bottom"
+      >
         <div className="space-y-4">
           <div>
             <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">সদস্য *</label>
-            <select value={lMemberId} onChange={(e) => setLMemberId(e.target.value)} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all bg-white">
+            <select 
+              value={lMemberId} 
+              onChange={(e) => setLMemberId(e.target.value)} 
+              disabled={currentUser.role === 'member'}
+              className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all bg-white disabled:bg-app-bg-secondary"
+            >
               <option value="">বেছে নিন...</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.name} ({m.phone})</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className={currentUser.role === 'admin' ? "col-span-1" : "col-span-2"}>
               <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">ঋণের পরিমাণ (৳) *</label>
               <input type="number" value={lAmount} onChange={(e) => setLAmount(Number(e.target.value))} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all" />
             </div>
-            <div>
-              <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">মুনাফা (৳) *</label>
-              <input type="number" value={lProfit} onChange={(e) => setLProfit(Number(e.target.value))} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all" />
-            </div>
+            {currentUser.role === 'admin' && (
+              <div>
+                <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">মুনাফা (৳) *</label>
+                <input type="number" value={lProfit} onChange={(e) => setLProfit(Number(e.target.value))} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all" />
+              </div>
+            )}
           </div>
           <div>
             <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">কিস্তির সংখ্যা *</label>
@@ -419,124 +489,58 @@ export const Modals: React.FC<ModalsProps> = ({
       </Modal>
 
       {/* Add Installment Modal */}
-      <Modal isOpen={isAddInstallmentOpen} onClose={() => setIsAddInstallmentOpen(false)} title="📲 কিস্তি গ্রহণ করুন">
+      <Modal 
+        isOpen={isAddInstallmentOpen} 
+        onClose={() => setIsAddInstallmentOpen(false)} 
+        title={currentUser.role === 'admin' ? "📲 কিস্তি গ্রহণ করুন" : "📲 কিস্তির রিকোয়েস্ট পাঠান"}
+        position="bottom"
+      >
         <div className="space-y-4">
           <div>
             <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">সদস্য *</label>
-            <select value={iMemberId} onChange={(e) => { setIMemberId(e.target.value); setILoanId(''); }} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all bg-white">
+            <select 
+              value={iMemberId} 
+              onChange={(e) => { setIMemberId(e.target.value); setILoanId(''); }} 
+              disabled={currentUser.role === 'member'}
+              className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all bg-white disabled:bg-app-bg-secondary"
+            >
               <option value="">বেছে নিন...</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.name} ({m.phone})</option>)}
             </select>
           </div>
           <div>
             <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">ঋণ *</label>
-            <select value={iLoanId} onChange={(e) => setILoanId(e.target.value)} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all bg-white">
+            <select 
+              value={iLoanId} 
+              onChange={(e) => {
+                const lid = e.target.value;
+                setILoanId(lid);
+                const loan = loans.find(l => l.id === lid);
+                if (loan) setIAmount(Math.round(loan.monthly_installment));
+              }} 
+              className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all bg-white"
+            >
               <option value="">বেছে নিন...</option>
-              {loans.filter(l => l.member_id === iMemberId).map(l => <option key={l.id} value={l.id}>৳{fmt(l.amount)} ({l.date})</option>)}
+              {loans.filter(l => l.member_id === iMemberId && l.status === 'active').map(l => (
+                <option key={l.id} value={l.id}>
+                  ৳{fmt(l.amount)} (মাসিক: ৳{fmt(l.monthly_installment)}) - {l.date}
+                </option>
+              ))}
             </select>
           </div>
           <div>
             <label className="text-[11px] font-bold text-app-text-secondary mb-1 block">পরিমাণ (৳) *</label>
-            <input type="number" value={iAmount} onChange={(e) => setIAmount(Number(e.target.value))} className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all" />
+            <input 
+              type="number" 
+              value={iAmount} 
+              onChange={(e) => setIAmount(Number(e.target.value))} 
+              readOnly={currentUser.role === 'member'}
+              className="w-full p-3 border-2 border-app-border rounded-app-sm text-sm outline-none focus:border-primary transition-all disabled:bg-app-bg-secondary" 
+            />
           </div>
           <div className="flex gap-2 pt-2">
             <Button variant="gray" className="flex-1" onClick={() => setIsAddInstallmentOpen(false)}>বাতিল</Button>
             <Button className="flex-2" onClick={handleAddInstallment} loading={iLoading}>✅ কিস্তি যোগ করুন</Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Static Content Modals */}
-      <Modal isOpen={isInvestDetailsOpen} onClose={() => setIsInvestDetailsOpen(false)} title="📊 বিনিয়োগের বিবরণ">
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto p-2">
-          {investments.length === 0 ? (
-            <div className="text-center py-8 text-app-text-muted">কোনো বিনিয়োগ পাওয়া যায়নি</div>
-          ) : (
-            investments.map(inv => (
-              <div key={inv.id} className="p-4 rounded-2xl bg-white border border-app-border shadow-sm">
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-bold text-app-text-primary">{inv.title}</h4>
-                  <span className={cn(
-                    "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
-                    inv.status === 'active' ? "bg-accent/10 text-accent" : "bg-primary/10 text-primary"
-                  )}>
-                    {inv.status === 'active' ? 'চলমান' : 'গৃহীত'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <div className="text-app-text-muted">বিনিয়োগ:</div>
-                    <div className="font-bold">৳{inv.amount.toLocaleString('en-IN')}</div>
-                  </div>
-                  <div>
-                    <div className="text-app-text-muted">লাভ:</div>
-                    <div className="font-bold text-primary">৳{inv.profit.toLocaleString('en-IN')}</div>
-                  </div>
-                  {inv.received_amount && (
-                    <div className="col-span-2 pt-1 border-t border-app-border mt-1">
-                      <div className="text-app-text-muted">মোট প্রাপ্তি:</div>
-                      <div className="font-bold text-primary">৳{inv.received_amount.toLocaleString('en-IN')}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </Modal>
-
-      <Modal isOpen={isContactsOpen} onClose={() => setIsContactsOpen(false)} title="📞 যোগাযোগের তালিকা">
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto p-2">
-          {contacts.length === 0 ? (
-            <div className="text-center py-8 text-app-text-muted">কোনো কন্টাক্ট পাওয়া যায়নি</div>
-          ) : (
-            contacts.map(contact => (
-              <div key={contact.id} className="p-4 rounded-2xl bg-white border border-app-border shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl font-bold">
-                  {contact.photo ? <img src={contact.photo} className="w-full h-full object-cover rounded-full" /> : contact.name[0]}
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-bold text-app-text-primary">{contact.name}</h4>
-                  <p className="text-xs text-app-text-muted">{contact.position}</p>
-                  <p className="text-xs font-bold text-primary mt-0.5">{contact.phone}</p>
-                </div>
-                <a href={`tel:${contact.phone}`} className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center shadow-lg active:scale-90 transition-all">
-                  <Phone className="w-5 h-5" />
-                </a>
-              </div>
-            ))
-          )}
-        </div>
-      </Modal>
-
-      <Modal isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} title="📄 প্রয়োজনীয় ডকুমেন্টস">
-        <div className="text-center py-12 space-y-4">
-          <div className="text-5xl opacity-20">📂</div>
-          <p className="text-app-text-muted text-sm">বর্তমানে কোনো ডকুমেন্ট আপলোড করা নেই।</p>
-        </div>
-      </Modal>
-
-      <Modal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} title="ফাউন্ডেশনের শর্তাবলী">
-        <div className="prose prose-sm max-h-[60vh] overflow-y-auto p-2">
-          <h4 className="text-primary">১. সদস্যপদ</h4>
-          <p>ফাউন্ডেশনের সদস্য হতে হলে নির্ধারিত ফি প্রদান করতে হবে এবং নিয়মিত মাসিক জমা দিতে হবে।</p>
-          <h4 className="text-primary">২. সঞ্চয় ও ঋণ</h4>
-          <p>প্রতি মাসের ১০ তারিখের মধ্যে মাসিক জমা দিতে হবে। ঋণ গ্রহণের ক্ষেত্রে নির্দিষ্ট শর্তাবলী প্রযোজ্য হবে।</p>
-        </div>
-      </Modal>
-
-      <Modal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} title="অ্যাপ সম্পর্কে">
-        <div className="text-center p-4 space-y-4">
-          <div className="text-5xl">🤝</div>
-          <div>
-            <h3 className="font-serif text-lg font-bold text-primary">বন্ধুমহল ফাউন্ডেশন</h3>
-            <p className="text-xs text-app-text-muted">ভার্সন ৩.০.০</p>
-          </div>
-          <p className="text-sm text-app-text-secondary leading-relaxed">
-            এটি একটি সঞ্চয় ও ঋণ ব্যবস্থাপনা অ্যাপ। বন্ধুদের মধ্যে স্বচ্ছতা ও সহজ হিসাব রাখার জন্য এটি তৈরি করা হয়েছে।
-          </p>
-          <div className="pt-4 border-t border-app-border">
-            <p className="text-[10px] text-app-text-muted">© ২০২৪ বন্ধুমহল ফাউন্ডেশন। সর্বস্বত্ব সংরক্ষিত।</p>
           </div>
         </div>
       </Modal>

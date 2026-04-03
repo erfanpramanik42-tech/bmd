@@ -6,6 +6,7 @@ export interface User {
   phone: string;
   role: Role;
   isSuperAdmin?: boolean;
+  firebase_uid?: string;
   photo?: string;
   address?: string;
   join_date?: string;

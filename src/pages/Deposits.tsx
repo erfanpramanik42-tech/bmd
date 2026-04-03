@@ -36,9 +36,6 @@ export const Deposits: React.FC<DepositsProps> = ({ currentUser, onAddDeposit })
 
   const isAdmin = currentUser.role === 'admin';
   let filteredDeps = deposits;
-  if (!isAdmin) {
-    filteredDeps = deposits.filter(d => d.member_id === currentUser.id);
-  }
   if (filter !== 'all') {
     filteredDeps = filteredDeps.filter(d => d.month === filter);
   }
